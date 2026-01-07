@@ -5,6 +5,23 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {},
   },
+  turbopack: {
+    // Enable Turbopack
+    rules: {
+      '*.svg': {
+        loaders: [
+          {
+            loader: '@svgr/webpack',
+            options: {
+              icon: true,
+              svgo: false,
+            },
+          },
+        ],
+        as: '*.js',
+      },
+    },
+  },
   async rewrites() {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -22,33 +39,6 @@ const nextConfig: NextConfig = {
         hostname: "img.clerk.com",
       },
     ],
-  },
-  // Performance optimizations
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Client-side optimizations
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false, // Disable fs module for client-side
-      };
-    }
-
-    // Enable compression and optimization
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-          },
-        },
-      },
-    };
-
-    return config;
   },
   // Enable compression
   compress: true,
