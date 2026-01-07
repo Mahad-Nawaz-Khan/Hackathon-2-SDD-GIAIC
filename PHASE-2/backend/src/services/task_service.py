@@ -46,7 +46,7 @@ class TaskService:
                 title=task_data.title,
                 description=task_data.description,
                 completed=False,  # New tasks are not completed by default
-                priority=task_data.priority,
+                priority=str(task_data.priority),  # Convert enum to string
                 due_date=due_date,
                 recurrence_rule=task_data.recurrence_rule,
                 user_id=user_id
@@ -212,7 +212,11 @@ class TaskService:
             update_data = task_data.model_dump(exclude_unset=True)
             for field, value in update_data.items():
                 if hasattr(task, field) and field != "id":
-                    setattr(task, field, value)
+                    # Convert enum to string if it's a priority field
+                    if field == "priority" and hasattr(value, 'value'):
+                        setattr(task, field, str(value.value))
+                    else:
+                        setattr(task, field, value)
 
             # Update the updated_at timestamp
             task.updated_at = datetime.utcnow()
