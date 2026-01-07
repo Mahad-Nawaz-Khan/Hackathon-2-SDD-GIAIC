@@ -215,6 +215,8 @@ class TaskService:
                     # Convert enum to string if it's a priority field
                     if field == "priority" and hasattr(value, 'value'):
                         setattr(task, field, str(value.value))
+                    elif field == "priority" and isinstance(value, str):
+                        setattr(task, field, value)
                     else:
                         setattr(task, field, value)
 
