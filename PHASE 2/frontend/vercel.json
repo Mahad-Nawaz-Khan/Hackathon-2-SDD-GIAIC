@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "src/middleware.ts": {
-      "runtime": "nodejs18"
-    }
-  },
   "buildCommand": "npm run build:prod",
   "outputDirectory": ".next",
   "installCommand": "npm install",
