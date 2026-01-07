@@ -6,6 +6,7 @@ from typing import List, Optional
 from ..middleware.auth import get_current_user
 from ..database import get_session
 from ..services.task_service import task_service
+from ..services.auth_service import auth_service
 from ..schemas.task import TaskResponse, TaskCreateRequest, TaskUpdateRequest
 from typing import Dict, Any
 
@@ -34,7 +35,6 @@ def get_tasks(
     """
     Get all tasks for the authenticated user
     """
-    from ..services.auth_service import auth_service
     clerk_user_id = auth_service.get_current_user_id(current_user)
     
     # Get user by Clerk user ID to get the integer user_id
@@ -89,7 +89,6 @@ def create_task(
     """
     Create a new task for the authenticated user
     """
-    from ..services.auth_service import auth_service
     clerk_user_id = auth_service.get_current_user_id(current_user)
     
     # Get user by Clerk user ID to get the integer user_id
