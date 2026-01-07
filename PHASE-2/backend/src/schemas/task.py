@@ -45,7 +45,7 @@ class TaskResponse(BaseModel):
 class TaskCreateRequest(BaseModel):
     title: str
     description: Optional[str] = None
-    priority: Optional[PriorityEnum] = PriorityEnum.MEDIUM.value
+    priority: Optional[PriorityEnum] = PriorityEnum.MEDIUM
     due_date: Optional[datetime] = None
     recurrence_rule: Optional[RecurrenceRuleEnum] = None
     tag_ids: Optional[List[int]] = []  # List of tag IDs to associate with the task

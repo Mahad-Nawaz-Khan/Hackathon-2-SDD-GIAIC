@@ -46,9 +46,9 @@ class TaskService:
                 title=task_data.title,
                 description=task_data.description,
                 completed=False,  # New tasks are not completed by default
-                priority=str(task_data.priority),  # Convert enum to string
+                priority=task_data.priority.value if task_data.priority else None,  # Convert enum to string
                 due_date=due_date,
-                recurrence_rule=task_data.recurrence_rule,
+                recurrence_rule=task_data.recurrence_rule.value if task_data.recurrence_rule else None,
                 user_id=user_id
                 # Note: tag_ids will be handled separately when we implement tag associations
             )
