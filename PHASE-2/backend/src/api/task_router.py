@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1", tags=["tasks"])
 
 @router.get("/tasks", response_model=List[TaskResponse])
 @limiter.limit("100/minute")  # 100 requests per minute for authenticated users
-def get_tasks(
+async def get_tasks(
     request: Request,  # Required for rate limiting
     completed: Optional[bool] = Query(None, description="Filter by completion status"),
     priority: Optional[str] = Query(None, description="Filter by priority level (HIGH, MEDIUM, LOW)"),
@@ -35,12 +35,8 @@ def get_tasks(
     """
     Get all tasks for the authenticated user
     """
-    clerk_user_id = auth_service.get_current_user_id(current_user)
-    
-    # Get user by Clerk user ID to get the integer user_id
-    user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Get or create user from Clerk payload
+    user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
     
     user_id = user.id
 
@@ -80,7 +76,7 @@ def get_tasks(
 
 @router.post("/tasks", response_model=TaskResponse, status_code=201)
 @limiter.limit("20/minute")  # 20 requests per minute for authenticated users
-def create_task(
+async def create_task(
     request: Request,  # Required for rate limiting
     task_request: TaskCreateRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -89,12 +85,8 @@ def create_task(
     """
     Create a new task for the authenticated user
     """
-    clerk_user_id = auth_service.get_current_user_id(current_user)
-    
-    # Get user by Clerk user ID to get the integer user_id
-    user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Get or create user from Clerk payload
+    user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
     
     user_id = user.id
 
@@ -124,7 +116,7 @@ def create_task(
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 @limiter.limit("50/minute")  # 50 requests per minute for authenticated users
-def get_task_by_id(
+async def get_task_by_id(
     request: Request,  # Required for rate limiting
     task_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -133,13 +125,8 @@ def get_task_by_id(
     """
     Get a specific task by ID for the authenticated user
     """
-    # Extract user ID from the current user payload
-    clerk_user_id = auth_service.get_current_user_id(current_user)
-    
-    # Get user by Clerk user ID to get the integer user_id
-    user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Get or create user from Clerk payload
+    user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
     
     user_id = user.id
 
@@ -175,7 +162,7 @@ def get_task_by_id(
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 @limiter.limit("30/minute")  # 30 requests per minute for authenticated users
-def update_task(
+async def update_task(
     request: Request,  # Required for rate limiting
     task_id: int,
     task_request: TaskUpdateRequest,
@@ -185,13 +172,8 @@ def update_task(
     """
     Update a specific task by ID for the authenticated user
     """
-    # Extract user ID from the current user payload
-    clerk_user_id = auth_service.get_current_user_id(current_user)
-    
-    # Get user by Clerk user ID to get the integer user_id
-    user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Get or create user from Clerk payload
+    user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
     
     user_id = user.id
 
@@ -228,7 +210,7 @@ def update_task(
 
 @router.delete("/tasks/{task_id}", status_code=204)
 @limiter.limit("30/minute")  # 30 requests per minute for authenticated users
-def delete_task(
+async def delete_task(
     request: Request,  # Required for rate limiting
     task_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -237,13 +219,8 @@ def delete_task(
     """
     Delete a specific task by ID for the authenticated user
     """
-    # Extract user ID from the current user payload
-    clerk_user_id = auth_service.get_current_user_id(current_user)
-    
-    # Get user by Clerk user ID to get the integer user_id
-    user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Get or create user from Clerk payload
+    user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
     
     user_id = user.id
 
@@ -266,7 +243,7 @@ def delete_task(
 
 @router.patch("/tasks/{task_id}/toggle-completion", response_model=TaskResponse)
 @limiter.limit("40/minute")  # 40 requests per minute for authenticated users
-def toggle_task_completion(
+async def toggle_task_completion(
     request: Request,  # Required for rate limiting
     task_id: int,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -275,13 +252,8 @@ def toggle_task_completion(
     """
     Toggle the completion status of a task for the authenticated user
     """
-    # Extract user ID from the current user payload
-    clerk_user_id = auth_service.get_current_user_id(current_user)
-    
-    # Get user by Clerk user ID to get the integer user_id
-    user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Get or create user from Clerk payload
+    user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
     
     user_id = user.id
 
