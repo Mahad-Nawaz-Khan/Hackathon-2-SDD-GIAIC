@@ -1,9 +1,10 @@
 import pytest
 import os
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from src.main import app
 from src.database import get_session
+from src.middleware.auth import get_current_user
 from src.models.user import User
 from src.models.task import Task
 from src.models.tag import Tag
@@ -39,11 +40,10 @@ def test_root_endpoint(client):
     assert "message" in response.json()
 
 
-@patch('src.middleware.auth.get_current_user')
-def test_create_task_endpoint(mock_get_current_user, client, mock_session):
+def test_create_task_endpoint(client, mock_session):
     """Test creating a task via the API endpoint."""
     # Mock the authentication
-    mock_get_current_user.return_value = {"sub": "test_user_123"}
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test_user_123"}
 
     # Mock the database session
     def mock_get_session():
@@ -53,7 +53,13 @@ def test_create_task_endpoint(mock_get_current_user, client, mock_session):
     mock_user = User(id=1, clerk_user_id="test_user_123", created_at=datetime.utcnow())
 
     # Mock the session behavior
-    mock_session.exec.return_value.first.return_value = mock_user
+    mock_user_exec_result = MagicMock()
+    mock_user_exec_result.first.return_value = mock_user
+
+    mock_task_exec_result = MagicMock()
+    mock_task_exec_result.first.return_value = None
+
+    mock_session.exec.side_effect = [mock_user_exec_result, mock_task_exec_result]
     mock_session.add = MagicMock()
     mock_session.commit = MagicMock()
 
@@ -92,15 +98,16 @@ def test_create_task_endpoint(mock_get_current_user, client, mock_session):
     assert response.json()["title"] == "Test Task"
 
 
-@patch('src.middleware.auth.get_current_user')
-def test_get_tasks_endpoint(mock_get_current_user, client, mock_session):
+def test_get_tasks_endpoint(client, mock_session):
     """Test getting tasks via the API endpoint."""
     # Mock the authentication
-    mock_get_current_user.return_value = {"sub": "test_user_123"}
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test_user_123"}
 
     # Mock the database session
     def mock_get_session():
         return mock_session
+
+    mock_user = User(id=1, clerk_user_id="test_user_123", created_at=datetime.utcnow())
 
     # Create mock tasks
     mock_tasks = [
@@ -117,9 +124,13 @@ def test_get_tasks_endpoint(mock_get_current_user, client, mock_session):
     ]
 
     # Mock the session behavior
-    mock_exec_result = MagicMock()
-    mock_exec_result.all.return_value = mock_tasks
-    mock_session.exec.return_value = mock_exec_result
+    mock_user_exec_result = MagicMock()
+    mock_user_exec_result.first.return_value = mock_user
+
+    mock_tasks_exec_result = MagicMock()
+    mock_tasks_exec_result.all.return_value = mock_tasks
+
+    mock_session.exec.side_effect = [mock_user_exec_result, mock_tasks_exec_result]
 
     # Mock the dependency override
     app.dependency_overrides[get_session] = lambda: mock_session
@@ -139,15 +150,16 @@ def test_get_tasks_endpoint(mock_get_current_user, client, mock_session):
     assert response.json()[0]["title"] == "Task 1"
 
 
-@patch('src.middleware.auth.get_current_user')
-def test_update_task_endpoint(mock_get_current_user, client, mock_session):
+def test_update_task_endpoint(client, mock_session):
     """Test updating a task via the API endpoint."""
     # Mock the authentication
-    mock_get_current_user.return_value = {"sub": "test_user_123"}
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test_user_123"}
 
     # Mock the database session
     def mock_get_session():
         return mock_session
+
+    mock_user = User(id=1, clerk_user_id="test_user_123", created_at=datetime.utcnow())
 
     # Create a mock task
     mock_task = Task(
@@ -162,9 +174,13 @@ def test_update_task_endpoint(mock_get_current_user, client, mock_session):
     )
 
     # Mock the session behavior
-    mock_exec_result = MagicMock()
-    mock_exec_result.first.return_value = mock_task
-    mock_session.exec.return_value = mock_exec_result
+    mock_user_exec_result = MagicMock()
+    mock_user_exec_result.first.return_value = mock_user
+
+    mock_task_exec_result = MagicMock()
+    mock_task_exec_result.first.return_value = mock_task
+
+    mock_session.exec.side_effect = [mock_user_exec_result, mock_task_exec_result]
     mock_session.add = MagicMock()
     mock_session.commit = MagicMock()
 
@@ -189,15 +205,16 @@ def test_update_task_endpoint(mock_get_current_user, client, mock_session):
     assert response.json()["title"] == "Updated Task"
 
 
-@patch('src.middleware.auth.get_current_user')
-def test_delete_task_endpoint(mock_get_current_user, client, mock_session):
+def test_delete_task_endpoint(client, mock_session):
     """Test deleting a task via the API endpoint."""
     # Mock the authentication
-    mock_get_current_user.return_value = {"sub": "test_user_123"}
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test_user_123"}
 
     # Mock the database session
     def mock_get_session():
         return mock_session
+
+    mock_user = User(id=1, clerk_user_id="test_user_123", created_at=datetime.utcnow())
 
     # Create a mock task
     mock_task = Task(
@@ -212,9 +229,13 @@ def test_delete_task_endpoint(mock_get_current_user, client, mock_session):
     )
 
     # Mock the session behavior
-    mock_exec_result = MagicMock()
-    mock_exec_result.first.return_value = mock_task
-    mock_session.exec.return_value = mock_exec_result
+    mock_user_exec_result = MagicMock()
+    mock_user_exec_result.first.return_value = mock_user
+
+    mock_task_exec_result = MagicMock()
+    mock_task_exec_result.first.return_value = mock_task
+
+    mock_session.exec.side_effect = [mock_user_exec_result, mock_task_exec_result]
     mock_session.delete = MagicMock()
     mock_session.commit = MagicMock()
 
@@ -234,29 +255,27 @@ def test_delete_task_endpoint(mock_get_current_user, client, mock_session):
     assert response.status_code == 204
 
 
-@patch('src.middleware.auth.get_current_user')
-def test_get_current_user_info_endpoint(mock_get_current_user, client, mock_session):
+def test_get_current_user_info_endpoint(client, mock_session):
     """Test getting current user info via the API endpoint."""
     # Mock the authentication
-    mock_get_current_user.return_value = {"sub": "test_user_123"}
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test_user_123"}
 
     # Mock the database session
     def mock_get_session():
         return mock_session
 
     # Create a mock user
-    mock_user = User(
-        id=1,
-        clerk_user_id="test_user_123",
-        email="test@example.com",
-        first_name="Test",
-        last_name="User",
-        created_at=datetime.utcnow()
-    )
+    mock_user = MagicMock()
+    mock_user.id = 1
+    mock_user.clerk_user_id = "test_user_123"
+    mock_user.email = "test@example.com"
+    mock_user.first_name = "Test"
+    mock_user.last_name = "User"
 
     # Mock the session behavior
     mock_exec_result = MagicMock()
     mock_exec_result.first.return_value = mock_user
+
     mock_session.exec.return_value = mock_exec_result
 
     # Mock the dependency override
@@ -277,11 +296,10 @@ def test_get_current_user_info_endpoint(mock_get_current_user, client, mock_sess
     assert response.json()["email"] == "test@example.com"
 
 
-@patch('src.middleware.auth.get_current_user')
-def test_create_tag_endpoint(mock_get_current_user, client, mock_session):
+def test_create_tag_endpoint(client, mock_session):
     """Test creating a tag via the API endpoint."""
     # Mock the authentication
-    mock_get_current_user.return_value = {"sub": "test_user_123"}
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test_user_123"}
 
     # Mock the database session
     def mock_get_session():
@@ -291,9 +309,13 @@ def test_create_tag_endpoint(mock_get_current_user, client, mock_session):
     mock_user = User(id=1, clerk_user_id="test_user_123", created_at=datetime.utcnow())
 
     # Mock the session behavior
-    mock_exec_result = MagicMock()
-    mock_exec_result.first.return_value = mock_user  # For user existence check
-    mock_session.exec.return_value = mock_exec_result
+    mock_user_exec_result = MagicMock()
+    mock_user_exec_result.first.return_value = mock_user  # For user existence check
+
+    mock_tag_exists_exec_result = MagicMock()
+    mock_tag_exists_exec_result.first.return_value = None
+
+    mock_session.exec.side_effect = [mock_user_exec_result, mock_tag_exists_exec_result]
     mock_session.add = MagicMock()
     mock_session.commit = MagicMock()
 

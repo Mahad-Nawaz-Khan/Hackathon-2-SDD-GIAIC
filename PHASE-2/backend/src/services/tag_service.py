@@ -31,9 +31,13 @@ class TagService:
             if existing_tag:
                 raise ValueError("Tag with this name already exists for the user")
 
+            color = tag_data.get("color")
+            if not isinstance(color, str) or len(color.strip()) == 0:
+                color = "#94A3B8"
+
             tag = Tag(
                 name=tag_data["name"],
-                color=tag_data.get("color"),
+                color=color,
                 user_id=user_id
             )
             db_session.add(tag)
@@ -116,8 +120,11 @@ class TagService:
                 raise ValueError("Tag ID must be positive")
             if user_id <= 0:
                 raise ValueError("User ID must be positive")
-            if "name" in tag_data and tag_data["name"] and len(tag_data["name"].strip()) > 100:
-                raise ValueError("Tag name must be less than 100 characters")
+            if "name" in tag_data:
+                if tag_data["name"] is None or len(str(tag_data["name"]).strip()) == 0:
+                    raise ValueError("Tag name is required")
+                if len(str(tag_data["name"]).strip()) > 100:
+                    raise ValueError("Tag name must be less than 100 characters")
 
             tag = self.get_tag_by_id(tag_id, user_id, db_session)
             if not tag:
@@ -138,6 +145,8 @@ class TagService:
 
             # Update fields
             for field, value in tag_data.items():
+                if value is None:
+                    continue
                 if hasattr(tag, field):
                     setattr(tag, field, value)
 

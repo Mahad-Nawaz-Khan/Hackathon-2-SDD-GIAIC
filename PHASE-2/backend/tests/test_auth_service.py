@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from unittest.mock import Mock, patch
 from sqlmodel import Session
 from src.models.user import User
@@ -28,7 +29,9 @@ class TestAuthService:
         self.mock_session.exec.return_value = mock_exec_result
 
         # Act
-        result = self.auth_service.get_or_create_user_from_clerk_payload(clerk_payload, self.mock_session)
+        result = asyncio.run(
+            self.auth_service.get_or_create_user_from_clerk_payload(clerk_payload, self.mock_session)
+        )
 
         # Assert
         assert result is not None
@@ -52,7 +55,9 @@ class TestAuthService:
         self.mock_session.refresh = Mock(side_effect=lambda obj: setattr(obj, 'id', 2))
 
         # Act
-        result = self.auth_service.get_or_create_user_from_clerk_payload(clerk_payload, self.mock_session)
+        result = asyncio.run(
+            self.auth_service.get_or_create_user_from_clerk_payload(clerk_payload, self.mock_session)
+        )
 
         # Assert
         assert result is not None
@@ -67,7 +72,9 @@ class TestAuthService:
 
         # Act & Assert
         with pytest.raises(Exception):  # HTTPException
-            self.auth_service.get_or_create_user_from_clerk_payload(clerk_payload, self.mock_session)
+            asyncio.run(
+                self.auth_service.get_or_create_user_from_clerk_payload(clerk_payload, self.mock_session)
+            )
 
     def test_get_current_user_id_success(self):
         """Test getting current user ID from payload."""

@@ -8,11 +8,13 @@ import {
   UserButton,
   useUser,
 } from "@clerk/nextjs";
+import { useState } from "react";
 import { TaskList } from "../components/TaskList";
 import { TaskForm } from "../components/TaskForm";
 
 export default function Dashboard() {
   const { user, isSignedIn, isLoaded } = useUser();
+  const [createdTask, setCreatedTask] = useState(null);
 
   if (!isLoaded) {
     return (
@@ -22,9 +24,8 @@ export default function Dashboard() {
     );
   }
 
-  const handleTaskCreated = (newTask: unknown) => {
-    // Optional: Handle task creation notification or additional logic
-    console.log('New task created:', newTask);
+  const handleTaskCreated = (newTask: any) => {
+    setCreatedTask(newTask);
   };
 
   return (
@@ -145,7 +146,7 @@ export default function Dashboard() {
 
             <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <TaskList />
+                <TaskList createdTask={createdTask} />
               </div>
               <div>
                 <TaskForm onTaskCreated={handleTaskCreated} />

@@ -53,6 +53,7 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
         },
         body: JSON.stringify({
           name: newTag.trim(),
+          color: '#94A3B8',
         }),
       });
 

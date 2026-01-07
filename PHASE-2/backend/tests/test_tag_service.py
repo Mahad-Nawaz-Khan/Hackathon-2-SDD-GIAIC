@@ -138,6 +138,7 @@ class TestTagService:
         # Arrange
         tag_id = 1
         user_id = 1
+
         existing_tag = Tag(
             id=tag_id,
             name="Old Name",
@@ -148,9 +149,16 @@ class TestTagService:
         update_data = {"name": "New Name", "color": "#0000FF"}
 
         # Mock the session execution for getting the tag
-        mock_exec_result = Mock()
-        mock_exec_result.first.return_value = existing_tag
-        self.mock_session.exec.return_value = mock_exec_result
+        mock_get_tag_exec_result = Mock()
+        mock_get_tag_exec_result.first.return_value = existing_tag
+
+        mock_duplicate_check_exec_result = Mock()
+        mock_duplicate_check_exec_result.first.return_value = None
+
+        self.mock_session.exec.side_effect = [
+            mock_get_tag_exec_result,
+            mock_duplicate_check_exec_result,
+        ]
 
         # Mock the session for update operations
         self.mock_session.add = Mock()
