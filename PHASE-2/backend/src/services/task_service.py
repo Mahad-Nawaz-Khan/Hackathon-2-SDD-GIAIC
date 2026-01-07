@@ -31,15 +31,26 @@ class TaskService:
             if len(task_data.title.strip()) > 255:
                 raise ValueError("Task title must be less than 255 characters")
 
+            # Handle due_date conversion if provided as string
+            due_date = task_data.due_date
+            if due_date and isinstance(due_date, str):
+                try:
+                    from datetime import datetime
+                    due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                except ValueError:
+                    # If parsing fails, set to None
+                    due_date = None
+
             # Create task object
             task = Task(
                 title=task_data.title,
                 description=task_data.description,
                 completed=False,  # New tasks are not completed by default
                 priority=task_data.priority,
-                due_date=task_data.due_date,
+                due_date=due_date,
                 recurrence_rule=task_data.recurrence_rule,
                 user_id=user_id
+                # Note: tag_ids will be handled separately when we implement tag associations
             )
 
             db_session.add(task)
