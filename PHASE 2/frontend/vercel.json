@@ -4,7 +4,8 @@
       "runtime": "nodejs18.x"
     }
   },
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build:prod",
   "outputDirectory": ".next",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "framework": "nextjs"
 }
