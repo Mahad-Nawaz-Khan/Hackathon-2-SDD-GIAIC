@@ -11,13 +11,9 @@ class PriorityEnum(str, Enum):
 
 
 class RecurrenceRuleEnum(str, Enum):
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
-    EVERY_3_DAYS = "every 3 days"
-    EVERY_7_DAYS = "every 7 days"
-    EVERY_30_DAYS = "every 30 days"
+    DAILY = "DAILY"
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
 
 
 class TagResponse(BaseModel):

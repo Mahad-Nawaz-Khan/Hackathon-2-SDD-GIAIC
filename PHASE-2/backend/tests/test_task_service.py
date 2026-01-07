@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from sqlmodel import Session, select
 from datetime import datetime
-from src.models.task import Task, PriorityEnum
+from src.models.task import Task
+from src.schemas.task import PriorityEnum, TaskCreateRequest, TaskUpdateRequest
 from src.services.task_service import TaskService
-from src.schemas.task import TaskCreateRequest, TaskUpdateRequest
 
 
 class TestTaskService:
@@ -28,7 +28,7 @@ class TestTaskService:
             id=1,
             title="Test Task",
             description="Test Description",
-            priority=PriorityEnum.MEDIUM,
+            priority="MEDIUM",
             user_id=user_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()

@@ -63,7 +63,7 @@ class TaskService:
             logging.error(f"Validation error creating task for user {user_id}: {str(ve)}")
             raise ve
         except Exception as e:
-            logging.error(f"Error creating task for user {user_id}: {str(e)}")
+            logging.exception(f"Error creating task for user {user_id}: {str(e)}")
             db_session.rollback()
             raise HTTPException(status_code=500, detail="Failed to create task")
 
@@ -215,6 +215,8 @@ class TaskService:
                     # Convert enum to string if it's a priority field
                     if field == "priority" and hasattr(value, 'value'):
                         setattr(task, field, str(value.value))
+                    elif field == "recurrence_rule" and hasattr(value, 'value'):
+                        setattr(task, field, str(value.value))
                     elif field == "priority" and isinstance(value, str):
                         setattr(task, field, value)
                     else:
@@ -233,7 +235,7 @@ class TaskService:
             logging.error(f"Validation error updating task {task_id} for user {user_id}: {str(ve)}")
             raise ve
         except Exception as e:
-            logging.error(f"Error updating task {task_id} for user {user_id}: {str(e)}")
+            logging.exception(f"Error updating task {task_id} for user {user_id}: {str(e)}")
             db_session.rollback()
             raise HTTPException(status_code=500, detail="Failed to update task")
 

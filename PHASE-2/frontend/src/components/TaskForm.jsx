@@ -144,12 +144,9 @@ export const TaskForm = ({ onTaskCreated }) => {
             className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40"
           >
             <option value="">No recurrence</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-            <option value="every 3 days">Every 3 days</option>
-            <option value="every 7 days">Every week</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
           </select>
         </div>
 
