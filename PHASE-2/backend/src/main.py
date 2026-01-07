@@ -1,11 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
 from sqlmodel import SQLModel, create_engine
 from contextlib import asynccontextmanager
+import logging
 import os
 
 # Load environment variables
@@ -24,7 +26,17 @@ elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 # Create database engine
-engine = create_engine(DATABASE_URL, echo=True)
+sql_echo_env = os.getenv("SQL_ECHO")
+if sql_echo_env is None:
+    sql_echo = DATABASE_URL.startswith("sqlite")
+else:
+    sql_echo = sql_echo_env.strip().lower() in {"1", "true", "yes", "on"}
+
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, echo=sql_echo, pool_pre_ping=True, connect_args=connect_args)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +51,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 # Add rate limiter to app
 app.state.limiter = limiter
