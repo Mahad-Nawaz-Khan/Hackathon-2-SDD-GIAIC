@@ -6,6 +6,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
 from sqlmodel import SQLModel, create_engine
+from sqlalchemy import text
 from contextlib import asynccontextmanager
 import logging
 import os
@@ -38,10 +39,23 @@ if DATABASE_URL.startswith("sqlite"):
 
 engine = create_engine(DATABASE_URL, echo=sql_echo, pool_pre_ping=True, connect_args=connect_args)
 
+def _run_startup_migrations() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE task ADD COLUMN IF NOT EXISTS parent_task_id INTEGER"))
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_task_user_parent_task_id ON task (user_id, parent_task_id)"
+            )
+        )
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create database tables on startup
     SQLModel.metadata.create_all(bind=engine)
+    _run_startup_migrations()
     yield
     # Clean up on shutdown if needed
 
