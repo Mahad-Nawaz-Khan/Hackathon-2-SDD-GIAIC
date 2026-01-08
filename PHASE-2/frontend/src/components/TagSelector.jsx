@@ -216,7 +216,7 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
               }
             }}
             placeholder="Tag name"
-            className="mt-1 flex-1 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            className="mt-1 min-w-8flex-1 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
           />
           <button
             type="button"

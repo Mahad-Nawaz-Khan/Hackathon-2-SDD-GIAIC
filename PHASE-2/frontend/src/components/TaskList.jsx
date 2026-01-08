@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { TaskItem } from './TaskItem';
 import { useAuth } from '@clerk/nextjs';
 
@@ -22,10 +22,116 @@ export const TaskList = ({ createdTask }) => {
   const { getToken } = useAuth();
   const abortControllerRef = useRef(null);
   const requestIdRef = useRef(0);
+  const inFlightRequestIdRef = useRef(null);
+
+  const fetchTasksFromAPI = useCallback(async ({ background = false } = {}) => {
+    if (background && inFlightRequestIdRef.current !== null) {
+      return;
+    }
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    inFlightRequestIdRef.current = requestId;
+
+    try {
+      setError(null);
+      if (!background) {
+        setLoading(true);
+      }
+      const token = await getToken();
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      const pageSize = 100;
+      let offset = 0;
+      let allTasks = [];
+
+      while (true) {
+        const params = new URLSearchParams();
+        params.append('limit', pageSize.toString());
+        params.append('offset', offset.toString());
+        params.append('sort_by', 'created_at');
+        params.append('order', 'desc');
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch tasks: ${response.status}`);
+        }
+
+        const page = await response.json();
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+
+        allTasks = allTasks.concat(page);
+
+        if (!Array.isArray(page) || page.length < pageSize) {
+          break;
+        }
+
+        offset += pageSize;
+      }
+
+      setTasks(() => {
+        const byId = new Map();
+        for (const task of allTasks) {
+          byId.set(task.id, task);
+        }
+        return Array.from(byId.values());
+      });
+    } catch (err) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+      if (err?.name === 'AbortError') {
+        return;
+      }
+      setError(err?.message || 'Failed to fetch tasks');
+    } finally {
+      if (inFlightRequestIdRef.current === requestId) {
+        inFlightRequestIdRef.current = null;
+      }
+      if (!background && requestIdRef.current === requestId) {
+        setLoading(false);
+      }
+    }
+  }, [getToken]);
 
   useEffect(() => {
     fetchTasksFromAPI();
-  }, []);
+  }, [fetchTasksFromAPI]);
+
+  useEffect(() => {
+    const syncIntervalMs = 10000;
+
+    const tick = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      fetchTasksFromAPI({ background: true });
+    };
+
+    const intervalId = window.setInterval(tick, syncIntervalMs);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [fetchTasksFromAPI]);
 
   useEffect(() => {
     return () => {
@@ -184,85 +290,6 @@ export const TaskList = ({ createdTask }) => {
 
     return sorted;
   }, [tasks, filters, sortConfig]);
-
-  const fetchTasksFromAPI = async () => {
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-
-    try {
-      setError(null);
-      setLoading(true);
-      const token = await getToken();
-
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      const pageSize = 100;
-      let offset = 0;
-      let allTasks = [];
-
-      while (true) {
-        const params = new URLSearchParams();
-        params.append('limit', pageSize.toString());
-        params.append('offset', offset.toString());
-        params.append('sort_by', 'created_at');
-        params.append('order', 'desc');
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tasks: ${response.status}`);
-        }
-
-        const page = await response.json();
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-
-        allTasks = allTasks.concat(page);
-
-        if (!Array.isArray(page) || page.length < pageSize) {
-          break;
-        }
-
-        offset += pageSize;
-      }
-
-      setTasks((prev) => {
-        const byId = new Map();
-        for (const task of allTasks) {
-          byId.set(task.id, task);
-        }
-        for (const task of prev) {
-          if (!byId.has(task.id)) {
-            byId.set(task.id, task);
-          }
-        }
-        return Array.from(byId.values());
-      });
-    } catch (err) {
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-      if (err?.name === 'AbortError') {
-        return;
-      }
-      setError(err?.message || 'Failed to fetch tasks');
-    } finally {
-      if (requestIdRef.current === requestId) {
-        setLoading(false);
-      }
-    }
-  };
 
   const handleTaskUpdate = (updatedTask) => {
     setTasks((prev) => {
