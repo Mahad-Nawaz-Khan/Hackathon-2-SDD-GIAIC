@@ -1,28 +1,26 @@
-# TODO Application with Clerk Authentication
+# TODO Application with Clerk Authentication and Rate Limiting
 
-A full-stack TODO application with Next.js frontend, FastAPI backend, and Clerk authentication.
+A full-stack TODO application with Next.js frontend, FastAPI backend, Clerk authentication, and comprehensive rate limiting for security.
 
 ## Features
 
 - User authentication and authorization with Clerk
 - Create, read, update, and delete tasks
-- Task prioritization (Low, Medium, High)
-- Due dates and recurrence rules
-- Tagging system for tasks
-- Responsive design
+- Task prioritization (HIGH, MEDIUM, LOW)
+- Due dates and recurrence rules (DAILY, WEEKLY, MONTHLY)
+- Tagging system for tasks with many-to-many relationships
+- Advanced filtering, sorting, and search capabilities
+- Rate limiting on all API endpoints to prevent abuse
+- Responsive dark-themed design
+- Optimistic UI updates for instant interactions
 
 ## Tech Stack
 
 - Frontend: Next.js (App Router), React, Tailwind CSS
 - Backend: FastAPI, SQLModel, PostgreSQL
 - Authentication: Clerk
+- Rate Limiting: slowapi
 - Database: PostgreSQL (Neon)
-
-## Prerequisites
-
-- Node.js (v18 or higher)
-- Python (v3.9 or higher)
-- PostgreSQL database (or Neon account)
 
 ## Setup Instructions
 
@@ -41,7 +39,7 @@ A full-stack TODO application with Next.js frontend, FastAPI backend, and Clerk 
 3. Activate the virtual environment:
    - On Windows:
      ```bash
-     venv\Scripts\activate
+     .venv\Scripts\activate
      ```
    - On macOS/Linux:
      ```bash
@@ -104,11 +102,9 @@ A full-stack TODO application with Next.js frontend, FastAPI backend, and Clerk 
 
 ### Authentication
 - `GET /api/v1/auth/me` - Get current user info
-- `POST /api/v1/auth/login` - Login user
-- `POST /api/v1/auth/logout` - Logout user
 
 ### Tasks
-- `GET /api/v1/tasks` - Get all tasks for authenticated user
+- `GET /api/v1/tasks` - Get all tasks for authenticated user (with filtering, sorting, and search capabilities)
 - `POST /api/v1/tasks` - Create a new task
 - `GET /api/v1/tasks/{id}` - Get a specific task
 - `PUT /api/v1/tasks/{id}` - Update a specific task
@@ -162,10 +158,12 @@ npm run dev
 
 - JWT token verification with Clerk
 - User data isolation (users can only access their own data)
-- Rate limiting on API endpoints
+- Rate limiting on API endpoints (GET: 100/min, POST: 20/min, PUT/PATCH: 30/min, DELETE: 30/min)
 - Input validation using Pydantic models
 - SQL injection prevention with SQLModel
 - Proper error handling without exposing sensitive information
+- Database indexing for performance and security
+- Cache headers configured to prevent sensitive data caching
 
 ## Contributing
 
