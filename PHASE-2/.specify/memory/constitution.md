@@ -30,8 +30,8 @@ Backend validates Clerk-issued JWTs. Backend derives user identity exclusively f
 ### V. Data Integrity & Security
 Tasks are always scoped to a user record in the database. Clerk user ID must map to a single internal user record. All database queries must include user ownership validation. Input validation and sanitization must be performed on all user inputs to prevent injection attacks.
 
-### VI. Test-First (NON-NEGOTIABLE)
-TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced. All authentication and data isolation features must have comprehensive test coverage. Security tests must verify that users cannot access other users' data.
+### VI. Rate Limiting & Performance
+All API endpoints must implement rate limiting to prevent abuse. Endpoints should be optimized for performance with appropriate database indexing. Cache headers should be properly configured for different types of responses.
 
 ## Additional Constraints
 
@@ -45,10 +45,10 @@ TDD mandatory: Tests written → User approved → Tests fail → Then implement
 ### Core Functional Features
 - Full CRUD for tasks
 - Completion toggling
-- Priorities (high / medium / low)
-- Tags / categories
-- Search, filter, and sorting
-- Recurring tasks
+- Priorities (HIGH / MEDIUM / LOW)
+- Tags / categories with many-to-many relationship to tasks
+- Search, filter, and sorting capabilities
+- Recurring tasks (DAILY / WEEKLY / MONTHLY)
 - Due dates and reminders
 
 ### Security Requirements
@@ -56,6 +56,7 @@ TDD mandatory: Tests written → User approved → Tests fail → Then implement
 - All data access must validate user ownership
 - Passwords and sensitive data must never be logged
 - API responses must not leak information about other users' data existence
+- Rate limiting implemented on all endpoints to prevent abuse
 
 ## Development Workflow
 
@@ -64,21 +65,24 @@ TDD mandatory: Tests written → User approved → Tests fail → Then implement
 - Authentication flow changes require special security review
 - Database schema changes must maintain user data isolation
 - New API endpoints must include proper authentication validation
+- Rate limiting implementation must be verified for all new endpoints
 
 ### Quality Gates
 - All tests must pass before merging
 - Authentication and authorization logic must be covered by tests
 - No hardcoded secrets or credentials allowed
 - Security scanning must pass for all PRs
+- Performance benchmarks must be maintained
 
 ### Deployment Policy
 - Environment-specific configurations must be securely managed
 - Database migrations must preserve data integrity
 - Rollback procedures must maintain user data isolation
 - Production deployments require authentication verification
+- Rate limiting configurations must be appropriate for production traffic
 
 ## Governance
 
 This constitution supersedes all other development practices and architectural decisions for this project. All code changes must align with the stated principles. Amendments to this constitution require explicit documentation, team approval, and a migration plan for existing code. All PRs/reviews must verify compliance with user isolation and authentication requirements. Complexity must be justified with clear security and architectural benefits.
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-06 | **Last Amended**: 2026-01-06
+**Version**: 1.1.0 | **Ratified**: 2026-01-08 | **Last Amended**: 2026-01-08

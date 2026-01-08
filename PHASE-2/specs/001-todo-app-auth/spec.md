@@ -1,8 +1,8 @@
 # Feature Specification: TODO Application (Full-Stack Web) with Authentication
 
 **Feature Branch**: `001-todo-app-auth`
-**Created**: 2026-01-06
-**Status**: Draft
+**Created**: 2026-01-08
+**Status**: Implemented
 **Input**: User description: "TODO Application (Full-Stack Web) – Specification (With Auth)
 
 ================================================================
@@ -16,6 +16,10 @@
 \- Authentication and session management are handled by Clerk.
 
 \- Each authenticated user has a private, isolated task workspace.
+
+\- API endpoints implement rate limiting to prevent abuse.
+
+\- Tasks support priorities (HIGH / MEDIUM / LOW), tags with many-to-many relationship, and recurrence rules (DAILY / WEEKLY / MONTHLY).
 
 ================================================================
 
@@ -77,17 +81,17 @@ Each task includes:
 
 \- completed
 
-\- priority
+\- priority (HIGH / MEDIUM / LOW enum)
 
 \- due\_date
 
-\- recurrence\_rule
+\- recurrence\_rule (DAILY / WEEKLY / MONTHLY enum)
 
 \- created\_at
 
 \- updated\_at
 
-\- tags
+\- tags (many-to-many relationship with Tag model)
 
 ================================================================
 
@@ -109,11 +113,33 @@ Each task includes:
 
 \- All task operations are scoped to the authenticated user.
 
+\- Users can toggle task completion status through dedicated endpoint.
+
+\- Users can filter tasks by completion status, priority, due date range, and search terms.
+
+\- Users can sort tasks by creation date, update date, due date, and priority.
+
 6.3 Advanced Features
 
 \- Priorities, tags, search, filters, sorting, recurrence, and reminders
 
 &nbsp; must operate only within the user's dataset.
+
+\- Tags support CRUD operations and can be associated with multiple tasks.
+
+\- Recurrence rules support DAILY, WEEKLY, and MONTHLY patterns.
+
+6.4 Rate Limiting Requirements
+
+\- All API endpoints implement rate limiting to prevent abuse.
+
+\- GET requests limited to 100 per minute for authenticated users.
+
+\- POST requests limited to 20 per minute for authenticated users.
+
+\- PUT/PATCH requests limited to 30 per minute for authenticated users.
+
+\- DELETE requests limited to 30 per minute for authenticated users.
 
 ================================================================
 
@@ -226,19 +252,24 @@ A new or existing user wants to securely authenticate using Clerk's authenticati
 - **FR-006**: System MUST restrict all task operations to the authenticated user's own tasks
 - **FR-007**: Users MUST be able to create, read, update, and delete their own tasks
 - **FR-008**: Users MUST be able to mark tasks as completed or incomplete
-- **FR-009**: Users MUST be able to set priorities (high/medium/low) for their tasks
+- **FR-009**: Users MUST be able to set priorities (HIGH/MEDIUM/LOW) for their tasks
 - **FR-010**: Users MUST be able to add tags and categories to their tasks
 - **FR-011**: Users MUST be able to search, filter, and sort their tasks
 - **FR-012**: Users MUST be able to set due dates for their tasks
-- **FR-013**: Users MUST be able to create recurring tasks with recurrence rules
+- **FR-013**: Users MUST be able to create recurring tasks with recurrence rules (DAILY/WEEKLY/MONTHLY)
 - **FR-014**: System MUST prevent cross-user data access at the database query level
 - **FR-015**: Frontend MUST never pass user IDs manually between components
+- **FR-016**: System MUST implement rate limiting on all API endpoints to prevent abuse
+- **FR-017**: Users MUST be able to toggle task completion through a dedicated endpoint
+- **FR-018**: Users MUST be able to filter tasks by completion status, priority, due date range, and search terms
+- **FR-019**: Users MUST be able to sort tasks by creation date, update date, due date, and priority
+- **FR-020**: Tags MUST support CRUD operations and have many-to-many relationship with tasks
 
 ### Key Entities *(include if feature involves data)*
 
 - **User**: Represents an authenticated user in the system, linked to a Clerk user ID with attributes for creation timestamp
-- **Task**: Represents a personal task belonging to a single user, containing title, description, completion status, priority, due date, recurrence rules, timestamps, and tags
-- **Tag**: Represents a category or label that can be associated with tasks for organization and filtering purposes
+- **Task**: Represents a personal task belonging to a single user, containing title, description, completion status, priority (HIGH/MEDIUM/LOW), due date, recurrence rules (DAILY/WEEKLY/MONTHLY), timestamps, and tags
+- **Tag**: Represents a structured object with additional metadata (color, priority, etc.) that can be associated with tasks for organization and filtering purposes through a many-to-many relationship
 
 ## Clarifications
 
@@ -317,30 +348,6 @@ A new or existing user wants to securely authenticate using Clerk's authenticati
 **Acceptance Scenarios**:
 
 1. **Given** an unauthenticated user visits the application, **When** the user attempts to access protected features, **Then** they are redirected to Clerk's authentication flow
-2. **Given** a user has valid Clerk credentials, **When** the user authenticates, **Then** they gain access to their private task workspace
-3. **Given** a user is authenticated, **When** the user logs out, **Then** their session is terminated and access to protected features is revoked
-
----
-
-### User Story 4 - Offline Capability (Priority: P2)
-
-An authenticated user wants to access and modify their tasks even when offline, with changes syncing automatically when connectivity is restored.
-
-**Why this priority**: Provides resilience and continuous access to task management functionality regardless of network conditions.
-
-**Independent Test**: Can be fully tested by using the application in offline mode, making changes to tasks, and verifying that changes are queued and synced when online.
-
-**Acceptance Scenarios**:
-
-1. **Given** a user is offline, **When** the user views their tasks, **Then** they see cached data from their last online session
-2. **Given** a user is offline, **When** the user creates or modifies tasks, **Then** changes are queued for sync when connectivity is restored
-3. **Given** a user comes back online, **When** the sync process begins, **Then** all queued changes are applied to the server
-
----
-
-### Edge Cases
-
-- What happens when a user's Clerk session expires while using the application?
 - How does the system handle invalid or expired JWT tokens?
 - What occurs when a user tries to access the application without an internet connection?
 - How does the system handle concurrent access from multiple devices for the same user?

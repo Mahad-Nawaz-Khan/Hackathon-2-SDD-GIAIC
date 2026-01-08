@@ -1,15 +1,15 @@
 ---
 id: 2
-title: "Create TODO App Spec with Auth"
+title: "Create TODO App Spec with Auth and Rate Limiting"
 stage: spec
-date_iso: "2026-01-06"
+date_iso: "2026-01-08"
 surface: "agent"
 model: "claude-opus-4-5-20251101"
 feature: "todo-app-auth"
-branch: "001-todo-app-auth"
+branch: "master"
 user: "user"
 command: "/sp.specify"
-labels: ["spec", "todo-app", "auth", "clerk"]
+labels: ["spec", "todo-app", "auth", "clerk", "rate-limiting"]
 spec: "specs/001-todo-app-auth/spec.md"
 ticket: null
 adr: null
@@ -18,15 +18,15 @@ files:
   - "specs/001-todo-app-auth/spec.md"
   - "specs/001-todo-app-auth/checklists/requirements.md"
 tests: []
-outcome: "Successfully created a comprehensive specification for the TODO application with Clerk authentication"
-evaluation: "Spec includes user scenarios, functional requirements, and success criteria aligned with constitution principles"
+outcome: "Successfully created a comprehensive specification for the TODO application with Clerk authentication and rate limiting"
+evaluation: "Spec includes user scenarios, functional requirements, and success criteria aligned with constitution principles including rate limiting and advanced features"
 ---
 
 # Create TODO App Spec with Auth
 
 ## User Prompt
 ```
-TODO Application (Full-Stack Web) – Specification (With Auth)
+TODO Application (Full-Stack Web) – Specification (With Auth and Rate Limiting)
 
 ================================================================
 
@@ -39,6 +39,10 @@ TODO Application (Full-Stack Web) – Specification (With Auth)
 \- Authentication and session management are handled by Clerk.
 
 \- Each authenticated user has a private, isolated task workspace.
+
+\- API endpoints implement rate limiting to prevent abuse.
+
+\- Tasks support priorities (HIGH / MEDIUM / LOW), tags with many-to-many relationship, and recurrence rules (DAILY / WEEKLY / MONTHLY).
 
 ================================================================
 
@@ -100,17 +104,17 @@ Each task includes:
 
 \- completed
 
-\- priority
+\- priority (HIGH / MEDIUM / LOW enum)
 
 \- due\_date
 
-\- recurrence\_rule
+\- recurrence\_rule (DAILY / WEEKLY / MONTHLY enum)
 
 \- created\_at
 
 \- updated\_at
 
-\- tags
+\- tags (many-to-many relationship with Tag model)
 
 ================================================================
 
@@ -132,11 +136,33 @@ Each task includes:
 
 \- All task operations are scoped to the authenticated user.
 
+\- Users can toggle task completion status through dedicated endpoint.
+
+\- Users can filter tasks by completion status, priority, due date range, and search terms.
+
+\- Users can sort tasks by creation date, update date, due date, and priority.
+
 6.3 Advanced Features
 
 \- Priorities, tags, search, filters, sorting, recurrence, and reminders
 
 &nbsp; must operate only within the user's dataset.
+
+\- Tags support CRUD operations and can be associated with multiple tasks.
+
+\- Recurrence rules support DAILY, WEEKLY, and MONTHLY patterns.
+
+6.4 Rate Limiting Requirements
+
+\- All API endpoints implement rate limiting to prevent abuse.
+
+\- GET requests limited to 100 per minute for authenticated users.
+
+\- POST requests limited to 20 per minute for authenticated users.
+
+\- PUT/PATCH requests limited to 30 per minute for authenticated users.
+
+\- DELETE requests limited to 30 per minute for authenticated users.
 
 ================================================================
 
@@ -191,10 +217,10 @@ Created a comprehensive specification for the TODO application with Clerk authen
    - Edge cases for security and functionality
 
 2. Requirements:
-   - Functional requirements for authentication, task operations, and data isolation
-   - Key entities (User, Task, Tag) defined
+   - Functional requirements for authentication, task operations, data isolation, and rate limiting
+   - Key entities (User, Task, Tag) defined with specific details about enums and relationships
 
 3. Success Criteria:
-   - Measurable outcomes for authentication, performance, and data isolation
+   - Measurable outcomes for authentication, performance, data isolation, and rate limiting
 
 The specification has been saved to specs/001-todo-app-auth/spec.md with a quality checklist at specs/001-todo-app-auth/checklists/requirements.md.

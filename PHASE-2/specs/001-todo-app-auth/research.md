@@ -31,12 +31,19 @@
 ### Decision: API Versioning Strategy
 **Rationale**: Use `/api/v1` prefix for all backend API endpoints to allow for future versioning without breaking changes. This follows industry best practices and allows for gradual API evolution.
 
-### Decision: Offline Capability Implementation
-**Rationale**: Implement service workers with IndexedDB for client-side storage and sync queue. This allows the application to work offline and sync changes when connectivity is restored, meeting the requirement from the specification.
+### Decision: Professional UI & Instant UX
+**Rationale**: Adopt a modern, dark-theme design system (Tailwind CSS custom variables) and implement optimistic UI patterns so interactions feel instant (<100 ms). A collapsible TaskForm, styled dropdowns, and a dedicated TagList panel significantly improve usability.
 
 **Alternatives considered**:
-- Simple caching: Insufficient for complex operations like task creation
-- No offline support: Would violate specification requirement
+- Keep default Next.js styles: Lacks polished look expected for production
+- Use heavy UI library (e.g. Material UI): Adds bundle weight without matching desired aesthetic
+
+### Decision: UI/UX Overhaul
+**Rationale**: Implement a comprehensive UI/UX overhaul to provide a seamless and engaging user experience. This includes a redesigned navigation, improved typography, and enhanced visual hierarchy.
+
+**Alternatives considered**:
+- Incremental UI updates: Would not provide the same level of impact as a comprehensive overhaul
+- No UI updates: Would result in a subpar user experience
 
 ### Decision: JWT Token Management
 **Rationale**: Implement automatic JWT refresh using Clerk's recommended practices. Store tokens securely in httpOnly cookies or secure localStorage, with automatic refresh before expiration.
