@@ -14,11 +14,58 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
     fetchTags();
   }, []);
 
+  useEffect(() => {
+    const handleTagsChanged = (event) => {
+      const detail = event?.detail;
+      if (!detail) {
+        return;
+      }
+
+      if (detail.type === 'created' && detail.tag) {
+        const createdTag = detail.tag;
+        setAllTags((prev) => {
+          if (prev.some((tag) => tag.id === createdTag.id)) {
+            return prev;
+          }
+          return [...prev, createdTag];
+        });
+      }
+
+      if (detail.type === 'updated' && detail.tag) {
+        const updatedTag = detail.tag;
+        setAllTags((prev) => prev.map((tag) => {
+          if (tag.id !== updatedTag.id) {
+            return tag;
+          }
+          return {
+            ...tag,
+            ...updatedTag,
+          };
+        }));
+      }
+
+      if (detail.type === 'deleted' && detail.tagId) {
+        const deletedTagId = detail.tagId;
+        setAllTags((prev) => prev.filter((tag) => tag.id !== deletedTagId));
+
+        if (selectedTags.includes(deletedTagId)) {
+          onTagsChange(selectedTags.filter((id) => id !== deletedTagId));
+        }
+      }
+    };
+
+    window.addEventListener('tags:changed', handleTagsChanged);
+    return () => window.removeEventListener('tags:changed', handleTagsChanged);
+  }, [onTagsChange, selectedTags]);
+
   const fetchTags = async () => {
     try {
       setIsLoading(true);
       const token = await getToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tags`, {
+      const params = new URLSearchParams();
+      params.append('limit', '100');
+      params.append('offset', '0');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tags?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -63,8 +110,19 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
       }
 
       const createdTag = await response.json();
-      setAllTags([...allTags, createdTag]);
+      setAllTags((prev) => [...prev, createdTag]);
       setNewTag('');
+
+      if (!selectedTags.includes(createdTag.id)) {
+        onTagsChange([...selectedTags, createdTag.id]);
+      }
+
+      window.dispatchEvent(new CustomEvent('tags:changed', {
+        detail: {
+          type: 'created',
+          tag: createdTag,
+        }
+      }));
     } catch (err) {
       setError(err.message);
     } finally {

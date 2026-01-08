@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from ..models.tag import Tag
+from ..models.task_tag import TaskTagLink
 from ..models.user import User
 from fastapi import HTTPException
 import logging
@@ -178,6 +179,12 @@ class TagService:
             tag = self.get_tag_by_id(tag_id, user_id, db_session)
             if not tag:
                 return False
+
+            links = db_session.exec(
+                select(TaskTagLink).where(TaskTagLink.tag_id == tag_id)
+            ).all()
+            for link in links:
+                db_session.delete(link)
 
             db_session.delete(tag)
             db_session.commit()

@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { TaskList } from "../components/TaskList";
 import { TaskForm } from "../components/TaskForm";
+import TagList from "../components/TagList";
 
 export default function Dashboard() {
   const { user, isSignedIn, isLoaded } = useUser();
@@ -148,8 +149,9 @@ export default function Dashboard() {
               <div className="lg:col-span-2">
                 <TaskList createdTask={createdTask} />
               </div>
-              <div>
+              <div className="space-y-6">
                 <TaskForm onTaskCreated={handleTaskCreated} />
+                <TagList />
               </div>
             </main>
           </div>

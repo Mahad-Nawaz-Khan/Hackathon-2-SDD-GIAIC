@@ -36,6 +36,67 @@ export const TaskList = ({ createdTask }) => {
   }, []);
 
   useEffect(() => {
+    const handleTagsChanged = (event) => {
+      const detail = event?.detail;
+      if (!detail) {
+        return;
+      }
+
+      if (detail.type === 'updated' && detail.tag) {
+        const updatedTag = detail.tag;
+        setTasks((prev) => prev.map((task) => {
+          if (!Array.isArray(task.tags) || task.tags.length === 0) {
+            return task;
+          }
+
+          let changed = false;
+          const nextTags = task.tags.map((tag) => {
+            if (tag.id !== updatedTag.id) {
+              return tag;
+            }
+            changed = true;
+            return {
+              ...tag,
+              ...updatedTag,
+            };
+          });
+
+          if (!changed) {
+            return task;
+          }
+
+          return {
+            ...task,
+            tags: nextTags,
+          };
+        }));
+      }
+
+      if (detail.type === 'deleted' && detail.tagId) {
+        const deletedTagId = detail.tagId;
+        setTasks((prev) => prev.map((task) => {
+          if (!Array.isArray(task.tags) || task.tags.length === 0) {
+            return task;
+          }
+
+          const nextTags = task.tags.filter((tag) => tag.id !== deletedTagId);
+          if (nextTags.length === task.tags.length) {
+            return task;
+          }
+
+          return {
+            ...task,
+            tags: nextTags,
+          };
+        }));
+      }
+    };
+
+    window.addEventListener('tags:changed', handleTagsChanged);
+    return () => window.removeEventListener('tags:changed', handleTagsChanged);
+  }, []);
+
+  useEffect(() => {
     const normalizedSearch = searchInput.trim();
     const timeout = setTimeout(() => {
       setFilters((prev) => {
@@ -79,7 +140,8 @@ export const TaskList = ({ createdTask }) => {
     if (filters.search) {
       const query = filters.search.toLowerCase();
       result = result.filter((task) => {
-        const haystack = `${task.title ?? ''} ${task.description ?? ''}`.toLowerCase();
+        const tagNames = Array.isArray(task.tags) ? task.tags.map((tag) => tag.name).join(' ') : '';
+        const haystack = `${task.title ?? ''} ${task.description ?? ''} ${tagNames}`.toLowerCase();
         return haystack.includes(query);
       });
     }
@@ -259,11 +321,11 @@ export const TaskList = ({ createdTask }) => {
           <select
             value={filters.completed === null ? '' : filters.completed.toString()}
             onChange={(e) => handleFilterChange('completed', e.target.value === '' ? null : e.target.value === 'true')}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
           >
-            <option value="">All</option>
-            <option value="false">Active</option>
-            <option value="true">Completed</option>
+            <option value="" className="bg-slate-950 text-white">All</option>
+            <option value="false" className="bg-slate-950 text-white">Active</option>
+            <option value="true" className="bg-slate-950 text-white">Completed</option>
           </select>
         </div>
 
@@ -272,12 +334,12 @@ export const TaskList = ({ createdTask }) => {
           <select
             value={filters.priority}
             onChange={(e) => handleFilterChange('priority', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
           >
-            <option value="">All</option>
-            <option value="HIGH">High</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="LOW">Low</option>
+            <option value="" className="bg-slate-950 text-white">All</option>
+            <option value="HIGH" className="bg-slate-950 text-white">High</option>
+            <option value="MEDIUM" className="bg-slate-950 text-white">Medium</option>
+            <option value="LOW" className="bg-slate-950 text-white">Low</option>
           </select>
         </div>
 
@@ -286,12 +348,12 @@ export const TaskList = ({ createdTask }) => {
           <select
             value={sortConfig.sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
           >
-            <option value="created_at">Created Date</option>
-            <option value="updated_at">Updated Date</option>
-            <option value="due_date">Due Date</option>
-            <option value="priority">Priority</option>
+            <option value="created_at" className="bg-slate-950 text-white">Created Date</option>
+            <option value="updated_at" className="bg-slate-950 text-white">Updated Date</option>
+            <option value="due_date" className="bg-slate-950 text-white">Due Date</option>
+            <option value="priority" className="bg-slate-950 text-white">Priority</option>
           </select>
         </div>
 
@@ -299,7 +361,7 @@ export const TaskList = ({ createdTask }) => {
           <label className="block text-sm font-medium text-white/80">Search</label>
           <input
             type="text"
-            placeholder="Search tasks..."
+            placeholder="Search tasks or tags..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400/40"

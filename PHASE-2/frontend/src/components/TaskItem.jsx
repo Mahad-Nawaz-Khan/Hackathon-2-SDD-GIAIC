@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import TagSelector from './TagSelector';
 
@@ -12,20 +12,29 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
   const [editDueDate, setEditDueDate] = useState(task.due_date || '');
   const [editRecurrenceRule, setEditRecurrenceRule] = useState(task.recurrence_rule || '');
   const [editTags, setEditTags] = useState(task.tags ? task.tags.map(tag => tag.id) : []);
+  const [optimisticCompleted, setOptimisticCompleted] = useState(task.completed);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { getToken } = useAuth();
 
+  useEffect(() => {
+    setOptimisticCompleted(task.completed);
+  }, [task.completed]);
+
   const handleToggleComplete = async () => {
-    setLoading(true);
     setError(null);
 
     const previousTask = task;
+    const nextCompleted = !task.completed;
+
+    setOptimisticCompleted(nextCompleted);
     onUpdate({
       ...task,
-      completed: !task.completed,
+      completed: nextCompleted,
       updated_at: new Date().toISOString(),
     });
+
+    setLoading(true);
 
     try {
       const token = await getToken();
@@ -44,12 +53,15 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
 
       const updatedTask = await response.json();
       if (updatedTask?.id && updatedTask.id !== task.id) {
+        setOptimisticCompleted(previousTask.completed);
         onUpdate(previousTask);
         onUpdate(updatedTask);
       } else {
+        setOptimisticCompleted(Boolean(updatedTask?.completed));
         onUpdate(updatedTask);
       }
     } catch (err) {
+      setOptimisticCompleted(previousTask.completed);
       onUpdate(previousTask);
       setError(err.message);
     } finally {
@@ -179,11 +191,11 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
               <select
                 value={editPriority}
                 onChange={(e) => setEditPriority(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+                className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
               >
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
+                <option value="LOW" className="bg-slate-950 text-white">Low</option>
+                <option value="MEDIUM" className="bg-slate-950 text-white">Medium</option>
+                <option value="HIGH" className="bg-slate-950 text-white">High</option>
               </select>
             </div>
 
@@ -203,12 +215,12 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
             <select
               value={editRecurrenceRule}
               onChange={(e) => setEditRecurrenceRule(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+              className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
             >
-              <option value="">No recurrence</option>
-              <option value="DAILY">Daily</option>
-              <option value="WEEKLY">Weekly</option>
-              <option value="MONTHLY">Monthly</option>
+              <option value="" className="bg-slate-950 text-white">No recurrence</option>
+              <option value="DAILY" className="bg-slate-950 text-white">Daily</option>
+              <option value="WEEKLY" className="bg-slate-950 text-white">Weekly</option>
+              <option value="MONTHLY" className="bg-slate-950 text-white">Monthly</option>
             </select>
           </div>
 
@@ -243,23 +255,23 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
   }
 
   return (
-    <div className={`rounded-2xl border p-5 shadow-lg ${task.completed ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'}`}>
+    <div className={`rounded-2xl border p-5 shadow-lg ${optimisticCompleted ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'}`}>
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          Error: {error}
-        </div>
+        Error: {error}
+      </div>
       )}
       <div className="flex justify-between items-start gap-4">
         <div className="flex items-start gap-3">
           <input
             type="checkbox"
-            checked={task.completed}
+            checked={optimisticCompleted}
             onChange={handleToggleComplete}
             className="mt-1 h-4 w-4 rounded border-white/20 bg-white/10"
             disabled={loading}
           />
           <div>
-            <h3 className={`text-base font-semibold ${task.completed ? 'line-through text-emerald-100/80' : 'text-white'}`}>{task.title}</h3>
+            <h3 className={`text-base font-semibold ${optimisticCompleted ? 'line-through text-emerald-100/80' : 'text-white'}`}>{task.title}</h3>
             {task.description && (
               <div className="mt-1 text-sm text-white/70">
                 {task.description}
@@ -267,6 +279,7 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
             )}
           </div>
         </div>
+
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
