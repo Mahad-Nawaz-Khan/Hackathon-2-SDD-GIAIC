@@ -1,4 +1,4 @@
-from sqlmodel import Session, select, and_
+from sqlmodel import Session, select, and_, or_
 from typing import List, Optional
 from ..models.task import Task
 from ..models.tag import Tag
@@ -123,6 +123,17 @@ class TaskService:
 
             # Start with base query for user's tasks
             query = select(Task).where(Task.user_id == user_id).options(selectinload(Task.tags))
+
+            # Hide future recurring instances until their due date
+            now = datetime.utcnow()
+            query = query.where(
+                or_(
+                    Task.completed == True,
+                    Task.parent_task_id.is_(None),
+                    Task.due_date.is_(None),
+                    Task.due_date <= now,
+                )
+            )
 
             # Apply filters
             if completed is not None:
@@ -291,7 +302,29 @@ class TaskService:
             if not task:
                 return False
 
-            db_session.delete(task)
+            # If this task is part of a recurring series, deleting it should stop future occurrences.
+            if task.recurrence_rule or task.parent_task_id:
+                series_root_id = task.parent_task_id or task.id
+
+                incomplete_in_series = db_session.exec(
+                    select(Task).where(
+                        and_(
+                            Task.user_id == user_id,
+                            Task.completed == False,
+                            or_(Task.id == series_root_id, Task.parent_task_id == series_root_id),
+                        )
+                    )
+                ).all()
+
+                for series_task in incomplete_in_series:
+                    db_session.delete(series_task)
+
+                # If the task being deleted is completed, it won't be in the incomplete set.
+                if task.completed:
+                    db_session.delete(task)
+            else:
+                db_session.delete(task)
+
             db_session.commit()
 
             logging.info(f"Task deleted successfully with ID: {task_id} for user: {user_id}")
@@ -331,8 +364,11 @@ class TaskService:
                 task.completed = True
                 task.updated_at = datetime.utcnow()
                 new_task = self._handle_recurrence(task, db_session)
-                logging.info(f"Task {task_id} completed with recurrence. Created new instance: {new_task.id}")
-                return new_task
+                db_session.refresh(task)
+                logging.info(
+                    f"Task {task_id} completed with recurrence. Created new instance: {new_task.id}"
+                )
+                return task
             else:
                 # Standard toggle
                 task.completed = not task.completed
@@ -357,6 +393,8 @@ class TaskService:
         Handle recurrence logic when a recurring task is completed
         Creates a new instance of the task based on recurrence rules
         """
+        series_root_id = task.parent_task_id or task.id
+
         # Parse the recurrence rule (simple format: "daily", "weekly", "monthly", "yearly"
         # or more complex like "every 3 days", "every 2 weeks", etc.)
         next_due_date = self._calculate_next_due_date(task.due_date, task.recurrence_rule)
@@ -369,6 +407,7 @@ class TaskService:
             priority=task.priority,
             due_date=next_due_date,
             recurrence_rule=task.recurrence_rule,
+            parent_task_id=series_root_id,
             user_id=task.user_id
         )
 

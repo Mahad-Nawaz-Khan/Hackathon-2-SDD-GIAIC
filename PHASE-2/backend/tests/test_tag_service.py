@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import Mock, MagicMock
 from sqlmodel import Session
 from datetime import datetime
+from src.models.task import Task
 from src.models.tag import Tag
 from src.services.tag_service import TagService
 
@@ -178,6 +179,7 @@ class TestTagService:
         # Arrange
         tag_id = 1
         user_id = 1
+
         mock_tag = Tag(
             id=tag_id,
             name="Test Tag",
@@ -186,10 +188,17 @@ class TestTagService:
             created_at=datetime.utcnow()
         )
 
-        # Mock the session execution for getting the tag
-        mock_exec_result = Mock()
-        mock_exec_result.first.return_value = mock_tag
-        self.mock_session.exec.return_value = mock_exec_result
+        # Mock the session execution for getting the tag and tag links
+        mock_get_tag_exec_result = Mock()
+        mock_get_tag_exec_result.first.return_value = mock_tag
+
+        mock_links_exec_result = Mock()
+        mock_links_exec_result.all.return_value = []
+
+        self.mock_session.exec.side_effect = [
+            mock_get_tag_exec_result,
+            mock_links_exec_result,
+        ]
 
         # Mock the session for delete operations
         self.mock_session.delete = Mock()

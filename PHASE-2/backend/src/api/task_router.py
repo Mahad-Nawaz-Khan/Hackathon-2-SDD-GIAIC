@@ -25,6 +25,7 @@ def _task_to_response(task) -> TaskResponse:
         priority=task.priority,
         due_date=task.due_date,
         recurrence_rule=task.recurrence_rule,
+        parent_task_id=getattr(task, "parent_task_id", None),
         created_at=task.created_at,
         updated_at=task.updated_at,
         tags=[

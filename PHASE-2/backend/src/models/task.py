@@ -31,6 +31,7 @@ class Task(TaskBase, table=True):
         Index("idx_task_user_created_at", "user_id", "created_at"),
         Index("idx_task_completed_priority", "completed", "priority"),
         Index("idx_task_user_updated_at", "user_id", "updated_at"),
+        Index("idx_task_user_parent_task_id", "user_id", "parent_task_id"),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -64,6 +65,8 @@ class Task(TaskBase, table=True):
             nullable=True,
         ),
     )
+
+    parent_task_id: Optional[int] = Field(default=None, foreign_key="task.id", index=True)
 
     user_id: int = Field(foreign_key="user.id", index=True)  # Index for user_id
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)  # Index for created_at

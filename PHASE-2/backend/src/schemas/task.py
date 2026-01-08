@@ -33,6 +33,7 @@ class TaskResponse(BaseModel):
     priority: Optional[PriorityEnum] = PriorityEnum.MEDIUM
     due_date: Optional[datetime] = None
     recurrence_rule: Optional[RecurrenceRuleEnum] = None
+    parent_task_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     tags: List[TagResponse] = []
