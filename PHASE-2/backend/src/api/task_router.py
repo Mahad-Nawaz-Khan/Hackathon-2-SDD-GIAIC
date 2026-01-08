@@ -7,13 +7,38 @@ from ..middleware.auth import get_current_user
 from ..database import get_session
 from ..services.task_service import task_service
 from ..services.auth_service import auth_service
-from ..schemas.task import TaskResponse, TaskCreateRequest, TaskUpdateRequest
+from ..schemas.task import TaskResponse, TaskCreateRequest, TaskUpdateRequest, TagResponse
 from typing import Dict, Any
 
 # Initialize rate limiter for this router
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
+
+
+def _task_to_response(task) -> TaskResponse:
+    return TaskResponse(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        completed=task.completed,
+        priority=task.priority,
+        due_date=task.due_date,
+        recurrence_rule=task.recurrence_rule,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+        tags=[
+            TagResponse(
+                id=tag.id,
+                name=tag.name,
+                color=tag.color,
+                priority=tag.priority,
+                user_id=tag.user_id,
+                created_at=tag.created_at,
+            )
+            for tag in (getattr(task, "tags", None) or [])
+        ],
+    )
 
 
 @router.get("/tasks", response_model=List[TaskResponse])
@@ -57,19 +82,7 @@ async def get_tasks(
     # Convert tasks to response model format
     tasks_list = []
     for task in tasks:
-        task_response = TaskResponse(
-            id=task.id,
-            title=task.title,
-            description=task.description,
-            completed=task.completed,
-            priority=task.priority,
-            due_date=task.due_date,
-            recurrence_rule=task.recurrence_rule,
-            created_at=task.created_at,
-            updated_at=task.updated_at,
-            tags=[]  # Will be populated when we implement tags
-        )
-        tasks_list.append(task_response)
+        tasks_list.append(_task_to_response(task))
 
     return tasks_list
 
@@ -91,27 +104,17 @@ async def create_task(
     user_id = user.id
 
     # Create the task using the service
-    task = task_service.create_task(
-        task_data=task_request,
-        user_id=user_id,
-        db_session=db_session
-    )
+    try:
+        task = task_service.create_task(
+            task_data=task_request,
+            user_id=user_id,
+            db_session=db_session
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Convert to response model
-    task_response = TaskResponse(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        completed=task.completed,
-        priority=task.priority,
-        due_date=task.due_date,
-        recurrence_rule=task.recurrence_rule,
-        created_at=task.created_at,
-        updated_at=task.updated_at,
-        tags=[]  # Will be populated when we implement tags
-    )
-
-    return task_response
+    return _task_to_response(task)
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -144,20 +147,7 @@ async def get_task_by_id(
         )
 
     # Convert to response model
-    task_response = TaskResponse(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        completed=task.completed,
-        priority=task.priority,
-        due_date=task.due_date,
-        recurrence_rule=task.recurrence_rule,
-        created_at=task.created_at,
-        updated_at=task.updated_at,
-        tags=[]  # Will be populated when we implement tags
-    )
-
-    return task_response
+    return _task_to_response(task)
 
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
@@ -178,12 +168,15 @@ async def update_task(
     user_id = user.id
 
     # Update the task using the service
-    updated_task = task_service.update_task(
-        task_id=task_id,
-        task_data=task_request,
-        user_id=user_id,
-        db_session=db_session
-    )
+    try:
+        updated_task = task_service.update_task(
+            task_id=task_id,
+            task_data=task_request,
+            user_id=user_id,
+            db_session=db_session
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     if not updated_task:
         raise HTTPException(
@@ -192,20 +185,7 @@ async def update_task(
         )
 
     # Convert to response model
-    task_response = TaskResponse(
-        id=updated_task.id,
-        title=updated_task.title,
-        description=updated_task.description,
-        completed=updated_task.completed,
-        priority=updated_task.priority,
-        due_date=updated_task.due_date,
-        recurrence_rule=updated_task.recurrence_rule,
-        created_at=updated_task.created_at,
-        updated_at=updated_task.updated_at,
-        tags=[]  # Will be populated when we implement tags
-    )
-
-    return task_response
+    return _task_to_response(updated_task)
 
 
 @router.delete("/tasks/{task_id}", status_code=204)
@@ -271,17 +251,4 @@ async def toggle_task_completion(
         )
 
     # Convert to response model
-    task_response = TaskResponse(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        completed=task.completed,
-        priority=task.priority,
-        due_date=task.due_date,
-        recurrence_rule=task.recurrence_rule,
-        created_at=task.created_at,
-        updated_at=task.updated_at,
-        tags=[]  # Will be populated when we implement tags
-    )
-
-    return task_response
+    return _task_to_response(task)

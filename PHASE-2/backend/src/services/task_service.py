@@ -1,11 +1,13 @@
 from sqlmodel import Session, select, and_
 from typing import List, Optional
 from ..models.task import Task
+from ..models.tag import Tag
 from ..models.user import User
 from fastapi import HTTPException
 from ..schemas.task import TaskCreateRequest, TaskUpdateRequest
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+from sqlalchemy.orm import selectinload
 import re
 import logging
 
@@ -13,6 +15,25 @@ import logging
 class TaskService:
     def __init__(self):
         pass
+
+    def _get_tags_for_user(
+        self,
+        tag_ids: List[int],
+        user_id: int,
+        db_session: Session,
+    ) -> List[Tag]:
+        if not tag_ids:
+            return []
+
+        unique_ids = list(dict.fromkeys([int(tag_id) for tag_id in tag_ids]))
+        tags = db_session.exec(
+            select(Tag).where(and_(Tag.user_id == user_id, Tag.id.in_(unique_ids)))
+        ).all()
+
+        if len(tags) != len(unique_ids):
+            raise ValueError("One or more tags not found for this user")
+
+        return tags
 
     def create_task(
         self,
@@ -42,6 +63,10 @@ class TaskService:
                     due_date = None
 
             # Create task object
+            tags: List[Tag] = []
+            if getattr(task_data, "tag_ids", None):
+                tags = self._get_tags_for_user(task_data.tag_ids, user_id, db_session)
+
             task = Task(
                 title=task_data.title,
                 description=task_data.description,
@@ -50,8 +75,9 @@ class TaskService:
                 due_date=due_date,
                 recurrence_rule=task_data.recurrence_rule.value if task_data.recurrence_rule else None,
                 user_id=user_id
-                # Note: tag_ids will be handled separately when we implement tag associations
             )
+
+            task.tags = tags
 
             db_session.add(task)
             db_session.commit()
@@ -96,7 +122,7 @@ class TaskService:
                 raise ValueError(f"Invalid order value: {order}")
 
             # Start with base query for user's tasks
-            query = select(Task).where(Task.user_id == user_id)
+            query = select(Task).where(Task.user_id == user_id).options(selectinload(Task.tags))
 
             # Apply filters
             if completed is not None:
@@ -171,8 +197,10 @@ class TaskService:
             if user_id <= 0:
                 raise ValueError("User ID must be positive")
 
-            statement = select(Task).where(
-                and_(Task.id == task_id, Task.user_id == user_id)
+            statement = (
+                select(Task)
+                .where(and_(Task.id == task_id, Task.user_id == user_id))
+                .options(selectinload(Task.tags))
             )
             task = db_session.exec(statement).first()
             return task
@@ -210,6 +238,7 @@ class TaskService:
 
             # Update fields that are provided in task_data
             update_data = task_data.model_dump(exclude_unset=True)
+            tag_ids = update_data.pop("tag_ids", None)
             for field, value in update_data.items():
                 if hasattr(task, field) and field != "id":
                     # Convert enum to string if it's a priority field
@@ -221,6 +250,9 @@ class TaskService:
                         setattr(task, field, value)
                     else:
                         setattr(task, field, value)
+
+            if tag_ids is not None:
+                task.tags = self._get_tags_for_user(tag_ids, user_id, db_session)
 
             # Update the updated_at timestamp
             task.updated_at = datetime.utcnow()
@@ -337,6 +369,8 @@ class TaskService:
             recurrence_rule=task.recurrence_rule,
             user_id=task.user_id
         )
+
+        new_task.tags = list(task.tags) if getattr(task, "tags", None) else []
 
         db_session.add(new_task)
         db_session.commit()

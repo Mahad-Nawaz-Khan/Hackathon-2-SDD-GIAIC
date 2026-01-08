@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { TaskItem } from './TaskItem';
 import { useAuth } from '@clerk/nextjs';
 
@@ -25,7 +25,7 @@ export const TaskList = ({ createdTask }) => {
 
   useEffect(() => {
     fetchTasksFromAPI();
-  }, [filters, sortConfig]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -61,23 +61,67 @@ export const TaskList = ({ createdTask }) => {
       if (prev.some((task) => task.id === createdTask.id)) {
         return prev;
       }
-
-      if (filters.completed !== null && createdTask.completed !== filters.completed) {
-        return prev;
-      }
-      if (filters.priority && createdTask.priority !== filters.priority) {
-        return prev;
-      }
-      if (filters.search) {
-        const haystack = `${createdTask.title ?? ''} ${createdTask.description ?? ''}`.toLowerCase();
-        if (!haystack.includes(filters.search.toLowerCase())) {
-          return prev;
-        }
-      }
-
       return [createdTask, ...prev];
     });
-  }, [createdTask, filters.completed, filters.priority, filters.search]);
+  }, [createdTask]);
+
+  const visibleTasks = useMemo(() => {
+    let result = tasks;
+
+    if (filters.completed !== null) {
+      result = result.filter((task) => task.completed === filters.completed);
+    }
+
+    if (filters.priority) {
+      result = result.filter((task) => task.priority === filters.priority);
+    }
+
+    if (filters.search) {
+      const query = filters.search.toLowerCase();
+      result = result.filter((task) => {
+        const haystack = `${task.title ?? ''} ${task.description ?? ''}`.toLowerCase();
+        return haystack.includes(query);
+      });
+    }
+
+    const direction = sortConfig.order === 'asc' ? 1 : -1;
+    const priorityRank = {
+      LOW: 1,
+      MEDIUM: 2,
+      HIGH: 3,
+    };
+
+    const sorted = [...result].sort((a, b) => {
+      if (sortConfig.sortBy === 'priority') {
+        const aRank = priorityRank[a.priority] ?? 0;
+        const bRank = priorityRank[b.priority] ?? 0;
+        return (aRank - bRank) * direction;
+      }
+
+      if (sortConfig.sortBy === 'due_date') {
+        const aDate = a.due_date ? Date.parse(a.due_date) : null;
+        const bDate = b.due_date ? Date.parse(b.due_date) : null;
+
+        if (aDate === null && bDate === null) {
+          return 0;
+        }
+        if (aDate === null) {
+          return 1;
+        }
+        if (bDate === null) {
+          return -1;
+        }
+
+        return (aDate - bDate) * direction;
+      }
+
+      const aTime = a[sortConfig.sortBy] ? Date.parse(a[sortConfig.sortBy]) : 0;
+      const bTime = b[sortConfig.sortBy] ? Date.parse(b[sortConfig.sortBy]) : 0;
+      return (aTime - bTime) * direction;
+    });
+
+    return sorted;
+  }, [tasks, filters, sortConfig]);
 
   const fetchTasksFromAPI = async () => {
     const requestId = requestIdRef.current + 1;
@@ -88,43 +132,61 @@ export const TaskList = ({ createdTask }) => {
       setLoading(true);
       const token = await getToken();
 
-      // Build query parameters
-      const params = new URLSearchParams();
-      if (filters.completed !== null) {
-        params.append('completed', filters.completed.toString());
-      }
-      if (filters.priority) {
-        params.append('priority', filters.priority);
-      }
-      if (filters.search) {
-        params.append('search', filters.search);
-      }
-      params.append('sort_by', sortConfig.sortBy);
-      params.append('order', sortConfig.order);
-
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        signal: abortController.signal,
+      const pageSize = 100;
+      let offset = 0;
+      let allTasks = [];
+
+      while (true) {
+        const params = new URLSearchParams();
+        params.append('limit', pageSize.toString());
+        params.append('offset', offset.toString());
+        params.append('sort_by', 'created_at');
+        params.append('order', 'desc');
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch tasks: ${response.status}`);
+        }
+
+        const page = await response.json();
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+
+        allTasks = allTasks.concat(page);
+
+        if (!Array.isArray(page) || page.length < pageSize) {
+          break;
+        }
+
+        offset += pageSize;
+      }
+
+      setTasks((prev) => {
+        const byId = new Map();
+        for (const task of allTasks) {
+          byId.set(task.id, task);
+        }
+        for (const task of prev) {
+          if (!byId.has(task.id)) {
+            byId.set(task.id, task);
+          }
+        }
+        return Array.from(byId.values());
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch tasks: ${response.status}`);
-      }
-
-      const tasksData = await response.json();
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-      setTasks(tasksData);
     } catch (err) {
       if (requestIdRef.current !== requestId) {
         return;
@@ -141,7 +203,17 @@ export const TaskList = ({ createdTask }) => {
   };
 
   const handleTaskUpdate = (updatedTask) => {
-    setTasks((prev) => prev.map(task => task.id === updatedTask.id ? updatedTask : task));
+    setTasks((prev) => {
+      const index = prev.findIndex((task) => task.id === updatedTask.id);
+
+      if (index === -1) {
+        return [updatedTask, ...prev];
+      }
+
+      const next = [...prev];
+      next[index] = updatedTask;
+      return next;
+    });
   };
 
   const handleTaskDelete = (deletedTaskId) => {
@@ -235,16 +307,16 @@ export const TaskList = ({ createdTask }) => {
         </div>
       </div>
 
-      {tasks.length === 0 ? (
+      {visibleTasks.length === 0 ? (
         <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-6">
           <div className="font-medium text-white">{loading ? 'Loading tasks...' : 'No tasks found'}</div>
-          {!loading && (
+          {!loading && tasks.length === 0 && (
             <div className="mt-1 text-sm text-white/70">Create your first task using the form on the right.</div>
           )}
         </div>
       ) : (
         <ul className="mt-6 space-y-4">
-          {tasks.map(task => (
+          {visibleTasks.map(task => (
             <TaskItem
               key={task.id}
               task={task}

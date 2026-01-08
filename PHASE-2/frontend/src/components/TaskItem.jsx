@@ -20,6 +20,13 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
     setLoading(true);
     setError(null);
 
+    const previousTask = task;
+    onUpdate({
+      ...task,
+      completed: !task.completed,
+      updated_at: new Date().toISOString(),
+    });
+
     try {
       const token = await getToken();
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks/${task.id}/toggle-completion`, {
@@ -36,8 +43,14 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
       }
 
       const updatedTask = await response.json();
-      onUpdate(updatedTask);
+      if (updatedTask?.id && updatedTask.id !== task.id) {
+        onUpdate(previousTask);
+        onUpdate(updatedTask);
+      } else {
+        onUpdate(updatedTask);
+      }
     } catch (err) {
+      onUpdate(previousTask);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -49,6 +62,28 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
     setLoading(true);
     setError(null);
 
+    const payload = {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      priority: editPriority,
+      due_date: editDueDate || null,
+      recurrence_rule: editRecurrenceRule || null,
+      tag_ids: editTags,
+    };
+
+    const previousTask = task;
+    onUpdate({
+      ...task,
+      title: payload.title,
+      description: payload.description,
+      priority: payload.priority,
+      due_date: payload.due_date,
+      recurrence_rule: payload.recurrence_rule,
+      tags: (task.tags || []).filter((tag) => payload.tag_ids?.includes(tag.id)),
+      updated_at: new Date().toISOString(),
+    });
+    setIsEditing(false);
+
     try {
       const token = await getToken();
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks/${task.id}`, {
@@ -57,14 +92,7 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title: editTitle.trim(),
-          description: editDescription.trim(),
-          priority: editPriority,
-          due_date: editDueDate || null,
-          recurrence_rule: editRecurrenceRule || null,
-          tag_ids: editTags
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -74,8 +102,9 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
 
       const updatedTask = await response.json();
       onUpdate(updatedTask);
-      setIsEditing(false);
     } catch (err) {
+      onUpdate(previousTask);
+      setIsEditing(true);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -240,7 +269,15 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={() => {
+              setEditTitle(task.title);
+              setEditDescription(task.description || '');
+              setEditPriority(task.priority || 'MEDIUM');
+              setEditDueDate(task.due_date || '');
+              setEditRecurrenceRule(task.recurrence_rule || '');
+              setEditTags(task.tags ? task.tags.map(tag => tag.id) : []);
+              setIsEditing(true);
+            }}
             className="text-sm font-medium text-blue-300 hover:text-blue-200"
             disabled={loading}
           >
