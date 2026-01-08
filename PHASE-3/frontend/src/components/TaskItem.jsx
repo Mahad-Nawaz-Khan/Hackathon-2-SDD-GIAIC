@@ -53,6 +53,8 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
 
       const updatedTask = await response.json();
       if (updatedTask?.id && updatedTask.id !== task.id) {
+        setOptimisticCompleted(previousTask.completed);
+        onUpdate(previousTask);
         onUpdate(updatedTask);
       } else {
         setOptimisticCompleted(Boolean(updatedTask?.completed));

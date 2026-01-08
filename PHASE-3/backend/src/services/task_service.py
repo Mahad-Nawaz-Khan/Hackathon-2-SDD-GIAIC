@@ -328,8 +328,6 @@ class TaskService:
 
             # If marking as complete and task has recurrence
             if not task.completed and task.recurrence_rule:
-                task.completed = True
-                task.updated_at = datetime.utcnow()
                 new_task = self._handle_recurrence(task, db_session)
                 logging.info(f"Task {task_id} completed with recurrence. Created new instance: {new_task.id}")
                 return new_task
