@@ -200,34 +200,6 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
           ))}
         </div>
       </div>
-
-      {/* Create new tag */}
-      <div className="mt-2">
-        <label className="block text-sm font-medium text-white/80">Create new tag</label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                createTag();
-              }
-            }}
-            placeholder="Tag name"
-            className="mt-1 min-w-8flex-1 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
-          />
-          <button
-            type="button"
-            onClick={createTag}
-            disabled={isLoading}
-            className="mt-1 rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
-          >
-            Add
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

@@ -16,6 +16,21 @@ class TaskService:
     def __init__(self):
         pass
 
+    def _normalize_due_date(self, due_date_value) -> Optional[datetime]:
+        if not due_date_value:
+            return None
+
+        if isinstance(due_date_value, datetime):
+            return due_date_value
+
+        if isinstance(due_date_value, str):
+            try:
+                return datetime.fromisoformat(due_date_value.replace('Z', '+00:00'))
+            except ValueError:
+                return None
+
+        return None
+
     def _get_tags_for_user(
         self,
         tag_ids: List[int],
@@ -52,15 +67,16 @@ class TaskService:
             if len(task_data.title.strip()) > 255:
                 raise ValueError("Task title must be less than 255 characters")
 
-            # Handle due_date conversion if provided as string
-            due_date = task_data.due_date
-            if due_date and isinstance(due_date, str):
-                try:
-                    from datetime import datetime
-                    due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
-                except ValueError:
-                    # If parsing fails, set to None
-                    due_date = None
+            due_date = self._normalize_due_date(task_data.due_date)
+
+            # For recurring tasks, anchor the series to "today" (creation day).
+            # This avoids immediate duplicate visibility and makes the schedule deterministic.
+            if task_data.recurrence_rule:
+                now = datetime.utcnow()
+                if due_date is not None and due_date.date() != now.date():
+                    raise ValueError("For recurring tasks, due date must be today")
+                if due_date is None:
+                    due_date = now
 
             # Create task object
             tags: List[Tag] = []
@@ -124,14 +140,18 @@ class TaskService:
             # Start with base query for user's tasks
             query = select(Task).where(Task.user_id == user_id).options(selectinload(Task.tags))
 
-            # Hide future recurring instances until their due date
+            # Hide future recurring instances until their due date.
+            # Only recurring children (parent_task_id is not null) become visible once due.
             now = datetime.utcnow()
             query = query.where(
                 or_(
                     Task.completed == True,
                     Task.parent_task_id.is_(None),
-                    Task.due_date.is_(None),
-                    Task.due_date <= now,
+                    and_(
+                        Task.parent_task_id.is_not(None),
+                        Task.due_date.is_not(None),
+                        Task.due_date <= now,
+                    ),
                 )
             )
 
@@ -250,6 +270,36 @@ class TaskService:
             # Update fields that are provided in task_data
             update_data = task_data.model_dump(exclude_unset=True)
             tag_ids = update_data.pop("tag_ids", None)
+
+            if "due_date" in update_data:
+                update_data["due_date"] = self._normalize_due_date(update_data.get("due_date"))
+
+            if "recurrence_rule" in update_data:
+                recurrence_value = update_data.get("recurrence_rule")
+                if hasattr(recurrence_value, "value"):
+                    update_data["recurrence_rule"] = str(recurrence_value.value)
+                elif recurrence_value is None:
+                    update_data["recurrence_rule"] = None
+                else:
+                    update_data["recurrence_rule"] = str(recurrence_value)
+
+            # If enabling recurrence, anchor due_date to today.
+            if update_data.get("recurrence_rule") and not task.recurrence_rule:
+                now = datetime.utcnow()
+                if "due_date" in update_data:
+                    due_date = update_data.get("due_date")
+                    if due_date is not None and due_date.date() != now.date():
+                        raise ValueError("For recurring tasks, due date must be today")
+                else:
+                    update_data["due_date"] = now
+
+            # If already recurring and user attempts to change due_date, keep it anchored to today.
+            if task.recurrence_rule and "due_date" in update_data:
+                now = datetime.utcnow()
+                due_date = update_data.get("due_date")
+                if due_date is not None and due_date.date() != now.date():
+                    raise ValueError("For recurring tasks, due date must be today")
+
             for field, value in update_data.items():
                 if hasattr(task, field) and field != "id":
                     # Convert enum to string if it's a priority field
@@ -395,10 +445,24 @@ class TaskService:
         """
         series_root_id = task.parent_task_id or task.id
 
+        completed_at = datetime.utcnow()
+
+        # Determine when the next instance should become visible.
+        # - If the task was completed before its scheduled rollover, the next instance
+        #   becomes visible at that scheduled time.
+        # - If the task was completed after the rollover (late), start a fresh interval
+        #   from completion time.
+        scheduled_next = None
+        if task.due_date:
+            scheduled_next = self._calculate_next_due_date(task.due_date, task.recurrence_rule)
+
+        if scheduled_next and completed_at < scheduled_next:
+            next_due_date = scheduled_next
+        else:
+            next_due_date = self._calculate_next_due_date(completed_at, task.recurrence_rule)
+
         # Parse the recurrence rule (simple format: "daily", "weekly", "monthly", "yearly"
         # or more complex like "every 3 days", "every 2 weeks", etc.)
-        next_due_date = self._calculate_next_due_date(task.due_date, task.recurrence_rule)
-
         # Create a new task with the same properties but reset completion
         new_task = Task(
             title=task.title,
