@@ -32,9 +32,12 @@ export interface ChatHistoryResponse {
   session_id: string;
 }
 
+type TokenGetter = () => Promise<string>;
+
 class ChatService {
   private baseUrl: string;
   private sessionId: string;
+  private tokenGetter: TokenGetter | null = null;
 
   constructor() {
     // Use environment variable or fallback to localhost
@@ -48,8 +51,62 @@ class ChatService {
     }
   }
 
+  /**
+   * Set the token getter function from Clerk hook
+   */
+  setTokenGetter(getter: TokenGetter) {
+    this.tokenGetter = getter;
+  }
+
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Get the auth token from Clerk
+   */
+  private async getAuthToken(): Promise<string> {
+    // First try: Use the token getter set by the React component
+    if (this.tokenGetter) {
+      try {
+        const token = await this.tokenGetter();
+        if (token) {
+          return token;
+        }
+      } catch (error) {
+        console.error('Error getting Clerk token from getter:', error);
+      }
+    }
+
+    // Second try: Use the clerk-js loaded via script tag (if available)
+    if (typeof window !== 'undefined' && (window as any).Clerk) {
+      try {
+        const clerk = new (window as any).Clerk(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+        await clerk.load();
+        if (clerk.session) {
+          const token = await clerk.session.getToken();
+          if (token) {
+            return token;
+          }
+        }
+      } catch (error) {
+        console.error('Error getting Clerk token from clerk-js:', error);
+      }
+    }
+
+    // Third try: Check for token in localStorage (backup)
+    if (typeof window !== 'undefined') {
+      // Check various Clerk storage keys
+      const keys = ['__clerk_client_jwt', '__session'];
+      for (const key of keys) {
+        const token = localStorage.getItem(key);
+        if (token) {
+          return token;
+        }
+      }
+    }
+
+    throw new Error('No authentication token available. Please sign in.');
   }
 
   /**
@@ -57,7 +114,6 @@ class ChatService {
    */
   async sendMessage(content: string): Promise<ChatResponse> {
     try {
-      // Get the auth token from Clerk
       const token = await this.getAuthToken();
 
       const response = await fetch(`${this.baseUrl}/api/v1/chat/message`, {
@@ -79,160 +135,171 @@ class ChatService {
 
       return await response.json();
     } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to send message');
     }
   }
 
   /**
-   * Send a message and receive a streamed response using Server-Sent Events
-   *
-   * @param content - The message content to send
-   * @param onContent - Callback for each content delta (streaming text)
-   * @param onToolCall - Callback when a tool is called
-   * @param onToolOutput - Callback when a tool returns output
-   * @param onDone - Callback when the stream is complete with final response
-   * @param onError - Callback when an error occurs
-   * @returns AbortController to cancel the stream if needed
+   * Send a message with streaming response
    */
   sendMessageStream(
     content: string,
     callbacks: {
-      onContent?: (delta: string) => void;
+      onContent: (delta: string) => void;
       onToolCall?: (tool: string, args: any) => void;
       onToolOutput?: (output: any) => void;
-      onDone?: (response: ChatResponse) => void;
-      onError?: (error: string) => void;
+      onDone: (response: ChatResponse) => void;
+      onError: (error: string) => void;
     }
   ): AbortController {
     const controller = new AbortController();
-    const signal = controller.signal;
 
-    this.getAuthToken().then((token) => {
-      // Construct URL with session_id as query param for SSE
-      const url = new URL(`${this.baseUrl}/api/v1/chat/message/stream`);
-      url.searchParams.set('content', content);
-      url.searchParams.set('session_id', this.sessionId);
+    this.getAuthToken()
+      .then((token) => {
+        const url = new URL(`${this.baseUrl}/api/v1/chat/stream`);
+        url.searchParams.set('content', content);
+        url.searchParams.set('session_id', this.sessionId);
 
-      fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        signal,
-      })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
+        fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          signal: controller.signal,
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
-          const reader = response.body?.getReader();
-          if (!reader) {
-            throw new Error('No response body');
-          }
+            const reader = response.body?.getReader();
+            if (!reader) {
+              throw new Error('No response body');
+            }
 
-          const decoder = new TextDecoder();
-          let buffer = '';
-          let fullContent = '';
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let fullResponse = '';
 
-          const readStream = (): Promise<void> =>
-            reader.read().then(({ done, value }) => {
-              if (done) {
-                return Promise.resolve();
-              }
-
-              buffer += decoder.decode(value, { stream: true });
-
-              // Process complete SSE events
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const data = line.slice(6);
+            const readStream = (): Promise<void> => {
+              return reader.read().then(({ done, value }) => {
+                if (done) {
+                  // Parse final response
                   try {
-                    const event = JSON.parse(data);
+                    const finalResponse: ChatResponse = JSON.parse(fullResponse);
+                    callbacks.onDone(finalResponse);
+                  } catch (e) {
+                    // If we can't parse as JSON, create a minimal response
+                    callbacks.onDone({
+                      message: {
+                        id: Date.now().toString(),
+                        content: fullResponse || 'Response completed',
+                        sender_type: 'AI',
+                        created_at: new Date().toISOString(),
+                      },
+                    });
+                  }
+                  return Promise.resolve();
+                }
 
-                    switch (event.type) {
-                      case 'content':
-                      case 'content_delta':
-                        fullContent += event.content;
-                        callbacks.onContent?.(event.content);
-                        break;
-                      case 'tool_call':
-                        callbacks.onToolCall?.(event.tool, event.args);
-                        break;
-                      case 'tool_output':
-                        callbacks.onToolOutput?.(event.output);
-                        break;
-                      case 'done':
-                        callbacks.onDone?.({
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+
+                    if (data === '[DONE]') {
+                      continue;
+                    }
+
+                    try {
+                      const parsed = JSON.parse(data);
+
+                      if (parsed.type === 'content_delta') {
+                        callbacks.onContent(parsed.content || '');
+                        fullResponse += parsed.content || '';
+                      } else if (parsed.type === 'tool_call') {
+                        callbacks.onToolCall?.(parsed.tool, parsed.args);
+                      } else if (parsed.type === 'tool_output') {
+                        callbacks.onToolOutput?.(parsed.output);
+                      } else if (parsed.type === 'final') {
+                        fullResponse = parsed.content || fullResponse;
+                        callbacks.onDone({
                           message: {
-                            id: event.message_id || '',
-                            content: event.content || fullContent,
-                            sender_type: 'AI' as const,
+                            id: Date.now().toString(),
+                            content: parsed.content || '',
+                            sender_type: 'AI',
                             created_at: new Date().toISOString(),
                           },
-                          operation_performed: event.operation_performed,
-                          model_used: event.model_used,
+                          operation_performed: parsed.operation_performed,
+                          model_used: parsed.model_used,
                         });
-                        break;
-                      case 'error':
-                        callbacks.onError?.(event.error || 'Unknown error');
-                        break;
+                        controller.abort();
+                        return Promise.resolve();
+                      } else if (parsed.type === 'error') {
+                        callbacks.onError(parsed.content || 'Unknown error');
+                        controller.abort();
+                        return Promise.resolve();
+                      }
+                    } catch (e) {
+                      console.error('Failed to parse SSE data:', data, e);
                     }
-                  } catch (e) {
-                    // Ignore invalid JSON
                   }
                 }
-              }
 
-              return readStream();
-            });
+                return readStream();
+              });
+            };
 
-          return readStream();
-        })
-        .catch((error) => {
-          if (error.name !== 'AbortError') {
-            callbacks.onError?.(error.message);
-          }
-        });
-    }).catch((error) => {
-      callbacks.onError?.(error.message);
-    });
+            return readStream();
+          })
+          .catch((error) => {
+            if (error.name === 'AbortError') {
+              return;
+            }
+            console.error('Stream error:', error);
+            callbacks.onError(error.message || 'Stream error');
+          });
+      })
+      .catch((error) => {
+        console.error('Token error:', error);
+        callbacks.onError(error.message || 'Failed to get authentication token');
+      });
 
     return controller;
   }
 
   /**
-   * Get chat history for the current session
+   * Get chat history
    */
-  async getHistory(limit: number = 50): Promise<ChatHistoryResponse> {
+  async getHistory(): Promise<ChatHistoryResponse> {
     try {
       const token = await this.getAuthToken();
 
-      const response = await fetch(
-        `${this.baseUrl}/api/v1/chat/history?limit=${limit}&session_id=${this.sessionId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      const url = new URL(`${this.baseUrl}/api/v1/chat/history`);
+      url.searchParams.set('session_id', this.sessionId);
+      url.searchParams.set('limit', '50');
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
 
-      // Convert backend messages to frontend format
-      const messages = data.messages.map((msg: any) => ({
-        id: msg.id.toString(),
+      // Transform the response to match our interface
+      const messages: ChatMessage[] = data.messages.map((msg: any) => ({
+        id: msg.id,
         text: msg.content,
         sender: msg.sender_type === 'USER' ? 'user' : 'ai',
         timestamp: new Date(msg.created_at),
@@ -244,132 +311,57 @@ class ChatService {
         session_id: data.session_id,
       };
     } catch (error) {
-      console.error('Error getting chat history:', error);
-      throw error;
+      console.error('Failed to get history:', error);
+      // Return empty history on error
+      return {
+        messages: [],
+        total_count: 0,
+        session_id: this.sessionId,
+      };
     }
   }
 
   /**
-   * Clear chat history for the current session
+   * Clear chat history
    */
   async clearHistory(): Promise<void> {
     try {
       const token = await this.getAuthToken();
 
-      const response = await fetch(
-        `${this.baseUrl}/api/v1/chat/history?session_id=${this.sessionId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      await fetch(`${this.baseUrl}/api/v1/chat/history`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-      }
-
-      // Generate new session ID after clearing
+      // Generate new session ID
       this.sessionId = this.generateSessionId();
       if (typeof window !== 'undefined') {
         localStorage.setItem('chat_session_id', this.sessionId);
       }
     } catch (error) {
-      console.error('Error clearing chat history:', error);
+      console.error('Failed to clear history:', error);
       throw error;
     }
   }
 
   /**
-   * Get the current session ID
+   * Get current session ID
    */
   getSessionId(): string {
     return this.sessionId;
   }
 
   /**
-   * Set a new session ID
+   * Cancel any ongoing request
    */
-  setSessionId(sessionId: string): void {
-    this.sessionId = sessionId;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('chat_session_id', this.sessionId);
-    }
-  }
-
-  /**
-   * Get the auth token from Clerk
-   */
-  private async getAuthToken(): Promise<string> {
-    // If we have access to Clerk, get the token
-    if (typeof window !== 'undefined' && (window as any).clerk) {
-      try {
-        const token = await (window as any).clerk.session.getToken();
-        if (token) {
-          return token;
-        }
-      } catch (error) {
-        console.error('Error getting Clerk token:', error);
-      }
-    }
-
-    // Fallback: try to get from localStorage
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('__clerk_client_jwt');
-      if (token) {
-        return token;
-      }
-    }
-
-    throw new Error('No authentication token available');
-  }
-
-  /**
-   * Format AI response text for display
-   */
-  static formatResponse(text: string): string {
-    // Convert newlines to line breaks
-    return text.replace(/\n/g, '<br>');
-  }
-
-  /**
-   * Extract operation type from chat response
-   */
-  static getOperationType(response: ChatResponse): string | null {
-    return response.operation_performed?.type || null;
-  }
-
-  /**
-   * Check if response indicates a successful operation
-   */
-  static isOperationSuccessful(response: ChatResponse): boolean {
-    if (!response.operation_performed) {
-      return false;
-    }
-
-    const { type, result } = response.operation_performed;
-
-    // Check if result indicates success
-    if (result && typeof result === 'object' && 'success' in result) {
-      return result.success === true;
-    }
-
-    // Check operation type
-    return [
-      'create_task',
-      'toggle_task',
-      'delete_task',
-      'search_tasks',
-      'list_tasks',
-      'list_today_tasks',
-    ].includes(type);
+  cancelRequest(): void {
+    // This is handled by the AbortController returned by sendMessageStream
   }
 }
 
-// Create singleton instance
+// Singleton instance
 const chatService = new ChatService();
 
 export default chatService;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@clerk/nextjs';
 import chatService from '@/services/chatService';
 
 interface Message {
@@ -21,7 +22,17 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const [operationPerformed, setOperationPerformed] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Get Clerk token
+  const { getToken } = useAuth();
+
   const { autoLoadHistory = true, enableStreaming = true } = options;
+
+  // Set up the token getter for chatService
+  useEffect(() => {
+    if (getToken) {
+      chatService.setTokenGetter(getToken);
+    }
+  }, [getToken]);
 
   // Load chat history on mount
   useEffect(() => {
