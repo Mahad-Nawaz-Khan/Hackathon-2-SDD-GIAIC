@@ -62,9 +62,7 @@ class AgentService:
 
         try:
             # Import the agents library
-            from agents import Agent, Runner, RunConfig
-            from agents.models import OpenAIChatCompletionsModel
-            from openai import AsyncOpenAI
+            from agents import Agent, Runner, RunConfig, OpenAIChatCompletionsModel, AsyncOpenAI
 
             # Check for Gemini API key
             if not self._gemini_api_key:
