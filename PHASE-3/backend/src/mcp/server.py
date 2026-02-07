@@ -148,7 +148,8 @@ def update_task(task_id: int,
                 title: Optional[str] = None,
                 description: Optional[str] = None,
                 priority: Optional[str] = None,
-                due_date: Optional[str] = None):
+                due_date: Optional[str] = None,
+                completed: Optional[bool] = None):
     """
     Update an existing task.
 
@@ -158,6 +159,7 @@ def update_task(task_id: int,
         description: New task description
         completed: Mark task as completed/uncompleted
         priority: New priority level (HIGH, MEDIUM, LOW)
+        due_date: Due date in ISO format (YYYY-MM-DD)
 
     Returns:
         Dictionary with updated task information
