@@ -124,7 +124,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
               );
 
               if (response.operation_performed) {
-                setOperationPerformed(response.operationPerformed);
+                setOperationPerformed(response.operation_performed);
               }
 
               setIsLoading(false);
