@@ -12,6 +12,7 @@ import { useState } from "react";
 import { TaskList } from "../components/TaskList";
 import { TaskForm } from "../components/TaskForm";
 import TagList from "../components/TagList";
+import ChatInterface from "../components/ChatInterface";
 
 export default function Dashboard() {
   const { user, isSignedIn, isLoaded } = useUser();
@@ -152,6 +153,17 @@ export default function Dashboard() {
               <div className="space-y-6">
                 <TaskForm onTaskCreated={handleTaskCreated} />
                 <TagList />
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="font-medium text-white mb-3">Quick Chat</h3>
+                  <ChatInterface initialMessages={[
+                    {
+                      id: 'quick-chat-1',
+                      text: 'Need help with your tasks?',
+                      sender: 'ai',
+                      timestamp: new Date(Date.now() - 60000),
+                    }
+                  ]} />
+                </div>
               </div>
             </main>
           </div>

@@ -5,7 +5,16 @@
       "Bash(.specify/scripts/bash/check-prerequisites.sh --json --paths-only)",
       "Bash(.specify/scripts/bash/setup-plan.sh --json)",
       "Bash(.specify/scripts/bash/check-prerequisites.sh --json)",
-      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)"
+      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(Get-ChildItem:*)",
+      "Bash(.specify/scripts/bash/create-new-feature.sh:*)",
+      "Bash(.specify/scripts/bash/create-phr.sh:*)",
+      "Bash(ls:*)",
+      "Bash(python -m pytest:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
     ]
   }
 }

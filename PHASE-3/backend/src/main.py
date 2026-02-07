@@ -42,6 +42,17 @@ engine = create_engine(DATABASE_URL, echo=sql_echo, pool_pre_ping=True, connect_
 async def lifespan(app: FastAPI):
     # Create database tables on startup
     SQLModel.metadata.create_all(bind=engine)
+
+    # Initialize the OpenAI Agents SDK service
+    try:
+        from .services.agent_service import agent_service
+        agent_service.initialize()
+        app.state.agent_service = agent_service
+        print("OpenAI Agents SDK initialized")
+    except Exception as e:
+        print(f"Warning: Could not initialize OpenAI Agents SDK: {e}")
+        app.state.agent_service = None
+
     yield
     # Clean up on shutdown if needed
 
@@ -90,10 +101,14 @@ async def add_cache_headers(request, call_next):
 from .api.task_router import router as task_router
 from .api.auth_router import router as auth_router
 from .api.tag_router import router as tag_router
+from .api.chat_router import router as chat_router
+from .api.chat_streaming_router import router as chat_streaming_router
 
 app.include_router(task_router)
 app.include_router(auth_router)
 app.include_router(tag_router)
+app.include_router(chat_router)
+app.include_router(chat_streaming_router)
 
 @app.get("/")
 def read_root():
@@ -101,7 +116,49 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "TODO API", "version": "1.0.0"}
+
+
+@app.get("/health/detailed")
+def detailed_health_check():
+    """
+    Detailed health check with component status
+    """
+    import sys
+    from datetime import datetime
+
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "TODO API",
+        "version": "1.0.0",
+        "components": {
+            "database": {
+                "status": "connected" if engine else "disconnected",
+                "url_type": "postgresql" if DATABASE_URL and "postgres" in DATABASE_URL else "sqlite"
+            },
+            "chat": {
+                "status": "operational",
+                "features": [
+                    "intent_classification",
+                    "task_crud_operations",
+                    "conversation_context",
+                    "message_storage",
+                    "streaming_responses"
+                ],
+                "ai_provider": "openai_agents" if app.state.agent_service and app.state.agent_service.is_available() else "rule_based"
+            },
+            "authentication": {
+                "status": "enabled",
+                "provider": "Clerk"
+            }
+        },
+        "system": {
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        }
+    }
+
+    return health_status
 
 if __name__ == "__main__":
     import uvicorn

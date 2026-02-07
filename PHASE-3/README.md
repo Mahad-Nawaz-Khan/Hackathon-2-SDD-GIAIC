@@ -1,13 +1,17 @@
-# TODO Application with Clerk Authentication and Rate Limiting
+# AI-Powered Task Management Chatbot
 
-A full-stack TODO application with Next.js frontend, FastAPI backend, Clerk authentication, and comprehensive rate limiting for security.
+A full-stack AI-powered task management application with Next.js frontend, FastAPI backend, OpenAI Agents SDK integration, MCP server, Clerk authentication, and comprehensive rate limiting for security.
 
 ## Features
 
-- User authentication and authorization with Clerk
-- Create, read, update, and delete tasks
+- **AI-Powered Chat Interface**: Natural language task management via conversational AI
+- **OpenAI Agents SDK Integration**: Advanced AI processing with streaming responses
+- **MCP Server**: Model Context Protocol server for standardized tool access
+- **Server-Sent Events (SSE)**: Real-time streaming responses for better UX
+- User authentication and authorization with Clerk (JWT-based)
+- Create, read, update, and delete tasks via natural language
 - Task prioritization (HIGH, MEDIUM, LOW)
-- Due dates and recurrence rules (DAILY, WEEKLY, MONTHLY)
+- Due dates and task management
 - Tagging system for tasks with many-to-many relationships
 - Advanced filtering, sorting, and search capabilities
 - Rate limiting on all API endpoints to prevent abuse
@@ -16,11 +20,31 @@ A full-stack TODO application with Next.js frontend, FastAPI backend, Clerk auth
 
 ## Tech Stack
 
-- Frontend: Next.js (App Router), React, Tailwind CSS
-- Backend: FastAPI, SQLModel, PostgreSQL
-- Authentication: Clerk
-- Rate Limiting: slowapi
-- Database: PostgreSQL (Neon)
+- **Frontend**: Next.js (App Router), React 19, Tailwind CSS v4
+- **Backend**: FastAPI, SQLModel, PostgreSQL (Neon)
+- **AI**: OpenAI Agents SDK (Python), GPT-4o-mini model
+- **MCP**: Official MCP Python SDK with FastMCP
+- **Authentication**: Clerk (JWT-based)
+- **Rate Limiting**: slowapi
+- **Streaming**: Server-Sent Events (SSE)
+- **Database**: PostgreSQL (Neon Serverless)
+
+## Architecture
+
+```
+┌─────────────────┐      ┌─────────────────────┐      ┌─────────────────┐
+│   Next.js       │──────│   FastAPI Backend   │──────│  PostgreSQL     │
+│   Frontend      │ SSE  │                     │      │  (Neon)         │
+└─────────────────┘      │  ┌───────────────┐  │      └─────────────────┘
+                          │  │ OpenAI Agents│  │
+                          │  │ SDK Service  │  │
+                          │  └───────────────┘  │
+                          │  ┌───────────────┐  │
+                          │  │ MCP Server    │  │
+                          │  │ (FastMCP)     │  │
+                          │  └───────────────┘  │
+                          └─────────────────────┘
+```
 
 ## Setup Instructions
 
@@ -56,7 +80,11 @@ A full-stack TODO application with Next.js frontend, FastAPI backend, Clerk auth
    DATABASE_URL=postgresql://username:password@localhost:5432/todo_db
    CLERK_SECRET_KEY=your_clerk_secret_key
    CLERK_JWT_KEY=your_clerk_jwt_key
+   GEMINI_API_KEY=your_gemini_api_key
+   GEMINI_MODEL=gemini-2.0-flash-exp
    ```
+
+   **Note:** Get your free Gemini API key from https://aistudio.google.com/app/apikey
 
 6. Run the backend server:
    ```bash
@@ -93,10 +121,13 @@ A full-stack TODO application with Next.js frontend, FastAPI backend, Clerk auth
 - `DATABASE_URL`: PostgreSQL database connection string
 - `CLERK_SECRET_KEY`: Clerk secret key for backend verification
 - `CLERK_JWT_KEY`: Clerk JWT key for token verification
+- `GEMINI_API_KEY`: Gemini API key for AI agent functionality (get free at https://aistudio.google.com/app/apikey)
+- `GEMINI_MODEL`: Gemini model to use (default: gemini-2.0-flash-exp, options: gemini-2.0-flash-exp, gemini-2.5-flash-lite, gemini-2.5-pro)
+- `SQL_ECHO`: Set to "true" to enable SQL query logging (optional)
 
 ### Frontend (.env.local)
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key for frontend
-- `NEXT_PUBLIC_BACKEND_API_URL`: URL of the backend API
+- `NEXT_PUBLIC_API_URL`: URL of the backend API (e.g., http://localhost:8000)
 
 ## API Endpoints
 
@@ -117,6 +148,32 @@ A full-stack TODO application with Next.js frontend, FastAPI backend, Clerk auth
 - `GET /api/v1/tags/{id}` - Get a specific tag
 - `PUT /api/v1/tags/{id}` - Update a specific tag
 - `DELETE /api/v1/tags/{id}` - Delete a specific tag
+
+### Chat (AI-Powered)
+- `POST /api/v1/chat/message` - Send a message to the AI chatbot
+- `POST /api/v1/chat/message/stream` - Send a message and receive streamed response (SSE)
+- `GET /api/v1/chat/history` - Get chat history for a session
+- `DELETE /api/v1/chat/history` - Clear chat history
+
+### MCP Server (Internal)
+The application includes an MCP server using the official MCP Python SDK with FastMCP:
+
+**Tools Available:**
+- `create_task` - Create a new task
+- `update_task` - Update an existing task
+- `toggle_task_completion` - Toggle task completion status
+- `delete_task` - Delete a task
+- `search_tasks` - Search for tasks
+- `list_today_tasks` - List tasks due today
+- `get_task` - Get a specific task
+
+**Resources:**
+- `tasks://pending` - Get pending tasks as JSON
+- `tasks://summary` - Get task summary statistics
+
+**Prompts:**
+- `task_review` - Generate a task review prompt
+- `daily_plan` - Generate a daily planning prompt
 
 ## Running Tests
 
