@@ -3,16 +3,32 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlmodel import Session
 from typing import Dict, Any
-from ..middleware.auth import get_current_user
+from ..middleware.auth import get_current_user, auth_middleware
 from ..database import get_session
 from ..services.auth_service import auth_service
 from pydantic import BaseModel
+import os
 
 # Initialize rate limiter for this router
 limiter = Limiter(key_func=get_remote_address)
 
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
+
+
+@router.get("/auth/debug")
+async def auth_debug(request: Request):
+    """
+    Debug endpoint to check JWT configuration.
+    Returns the current Clerk JWT configuration values (without secrets).
+    """
+    return {
+        "clerk_issuer": os.getenv("CLERK_ISSUER", "NOT SET"),
+        "clerk_jwks_url": os.getenv("CLERK_JWKS_URL", "NOT SET"),
+        "clerk_audience": os.getenv("CLERK_JWT_AUDIENCE", "NOT SET (optional)"),
+        "auth_header_present": request.headers.get("Authorization") is not None,
+        "auth_header_format": "Bearer <token>" if request.headers.get("Authorization", "").startswith("Bearer ") else "Invalid format"
+    }
 
 
 class UserResponse(BaseModel):
