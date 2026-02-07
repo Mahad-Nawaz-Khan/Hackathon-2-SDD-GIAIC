@@ -4,22 +4,23 @@ import { useState } from 'react';
 import ChatInterface from '@/components/ChatInterface';
 import { useChat } from '@/hooks/useChat';
 
+// Use the same Message type as ChatInterface to avoid type conflicts
 interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'other';
+  sender: 'user' | 'ai';
   timestamp: Date;
 }
 
 export default function AdvancedChatPage() {
   const [showDemo, setShowDemo] = useState(true);
-  
+
   // Sample initial messages
   const initialMessages: Message[] = [
     {
       id: '1',
       text: 'Hello there! 👋 Welcome to the chat interface.',
-      sender: 'other',
+      sender: 'ai',
       timestamp: new Date(Date.now() - 300000), // 5 minutes ago
     },
     {
@@ -31,7 +32,7 @@ export default function AdvancedChatPage() {
     {
       id: '3',
       text: 'The messages are displayed chronologically with timestamps.',
-      sender: 'other',
+      sender: 'ai',
       timestamp: new Date(Date.now() - 180000), // 3 minutes ago
     },
   ];
