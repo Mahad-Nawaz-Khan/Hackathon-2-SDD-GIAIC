@@ -73,7 +73,7 @@ def clear_task_context():
 @mcp_server.tool()
 def create_task(title: str, description: Optional[str] = None,
                 priority: Optional[str] = None,
-                due_date: Optional[str] = None) -> Dict[str, Any]:
+                due_date: Optional[str] = None):
     """
     Create a new task for the user.
 
@@ -147,8 +147,8 @@ def create_task(title: str, description: Optional[str] = None,
 def update_task(task_id: int,
                 title: Optional[str] = None,
                 description: Optional[str] = None,
-                completed: Optional[bool] = None,
-                priority: Optional[str] = None) -> Dict[str, Any]:
+                priority: Optional[str] = None,
+                due_date: Optional[str] = None):
     """
     Update an existing task.
 
@@ -231,7 +231,7 @@ def update_task(task_id: int,
 
 
 @mcp_server.tool()
-def toggle_task_completion(task_id: int) -> Dict[str, Any]:
+def toggle_task_completion(task_id: int):
     """
     Toggle the completion status of a task.
 
@@ -276,7 +276,7 @@ def toggle_task_completion(task_id: int) -> Dict[str, Any]:
 
 
 @mcp_server.tool()
-def delete_task(task_id: int) -> Dict[str, Any]:
+def delete_task(task_id: int):
     """
     Delete a task.
 
@@ -336,7 +336,7 @@ def delete_task(task_id: int) -> Dict[str, Any]:
 def search_tasks(search: Optional[str] = None,
                  completed: Optional[bool] = None,
                  priority: Optional[str] = None,
-                 limit: int = 10) -> Dict[str, Any]:
+                 limit: int = 10):
     """
     Search for tasks based on criteria.
 
@@ -398,7 +398,7 @@ def search_tasks(search: Optional[str] = None,
 
 
 @mcp_server.tool()
-def list_today_tasks() -> Dict[str, Any]:
+def list_today_tasks():
     """
     List all tasks due today.
 
@@ -455,7 +455,7 @@ def list_today_tasks() -> Dict[str, Any]:
 
 
 @mcp_server.tool()
-def get_task(task_id: int) -> Dict[str, Any]:
+def get_task(task_id: int):
     """
     Get a specific task by ID.
 

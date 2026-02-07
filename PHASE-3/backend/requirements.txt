@@ -53,7 +53,7 @@ openai-agents>=0.7.0
 # MCP (Model Context Protocol)
 # ============================================================================
 # Official MCP Python SDK
-mcp>=1.0.0
+mcp-python>=1.0.0
 
 # ============================================================================
 # Streaming (Server-Sent Events)
