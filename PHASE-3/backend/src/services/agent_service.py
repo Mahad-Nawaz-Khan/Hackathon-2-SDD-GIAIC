@@ -426,7 +426,7 @@ def agent_list_tags() -> str:
         return f"Sorry, I couldn't retrieve tags. Error: {str(e)}"
 
 
-def agent_update_task(task_id: int, title: str = "", description: str = "", priority: str = "", completed: bool = None) -> str:
+def agent_update_task(task_id: int, title: str = "", description: str = "", priority: str = "", completed: bool = None, tags: str = "") -> str:
     """
     Update an existing task.
 
@@ -436,6 +436,7 @@ def agent_update_task(task_id: int, title: str = "", description: str = "", prio
         description: New task description (optional)
         priority: New priority level - HIGH, MEDIUM, or LOW (optional)
         completed: Mark task as completed/uncompleted (optional)
+        tags: Comma-separated tag names to attach (optional)
 
     Returns:
         A message describing the result
@@ -458,6 +459,12 @@ def agent_update_task(task_id: int, title: str = "", description: str = "", prio
         if completed is not None:
             update_data["completed"] = completed
 
+        # Handle tags
+        if tags:
+            tag_ids = _resolve_tags(tags)
+            if tag_ids:
+                update_data["tag_ids"] = tag_ids
+
         if not update_data:
             return "Please provide at least one field to update."
 
@@ -470,8 +477,11 @@ def agent_update_task(task_id: int, title: str = "", description: str = "", prio
             return f"Sorry, I couldn't find task #{task_id} to update."
 
         logger.info(f"Updated task {task_id} for user {_tool_context.user_id}")
-        # Mark operation for frontend refresh
         _mark_operation_performed("update_task", {"task_id": task_id})
+        return f"✓ Updated task '{updated_task.title}' successfully!"
+    except Exception as e:
+        logger.error(f"Error updating task: {str(e)}")
+        return f"Sorry, I couldn't update that task. Error: {str(e)}"
         return f"✓ Task '{updated_task.title}' updated successfully!"
     except Exception as e:
         logger.error(f"Error updating task: {str(e)}")
@@ -1099,7 +1109,8 @@ class AgentService:
                     "2. Find the matching task yourself by reading the list\n"
                     "3. Call agent_toggle_task with the exact task ID\n\n"
                     "TASK UPDATES/DELETION:\n"
-                    "- Call agent_get_all_tasks first, then use agent_update_task or agent_delete_task with the specific ID\n\n"
+                    "- Call agent_get_all_tasks first, then use agent_update_task or agent_delete_task with the specific ID\n"
+                    "- agent_update_task CAN add/remove tags with the tags parameter: tags='work,urgent'\n\n"
                     "CRITICAL RULES:\n"
                     "- NEVER put tags, recurrence, or priority in the description field!\n"
                     "- ALWAYS use the proper parameters: tags, recurrence, priority\n"
