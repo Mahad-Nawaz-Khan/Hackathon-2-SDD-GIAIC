@@ -509,35 +509,23 @@ class AgentService:
                 if name and name.lower() != "there":
                     user_name = name
 
-            # Build input with conversation history for context
-            # Use the messages directly as input history for the Runner
-            messages_for_context = []
-
-            # Add conversation history
+            # Build the input with user context and conversation history
+            input_text = content
             if conversation_history and len(conversation_history) > 0:
-                recent_messages = conversation_history[-5:]
-                for msg in recent_messages:
-                    role = "user" if msg.get("sender_type") == "USER" else "assistant"
-                    messages_for_context.append({
-                        "role": role,
-                        "content": msg.get('content', '')
-                    })
-
-            # Add the current message
-            current_msg = content
-            if user_name:
-                current_msg = f"(Your name is {user_name}) {content}"
-
-            messages_for_context.append({
-                "role": "user",
-                "content": current_msg
-            })
+                # Format conversation history as context
+                history_parts = []
+                for msg in conversation_history[-5:]:
+                    sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
+                    history_parts.append(f"{sender}: {msg.get('content', '')}")
+                history = "\n".join(history_parts)
+                input_text = f"Our conversation so far:\n{history}\n\nUser: {content}"
+            elif user_name:
+                input_text = f"My name is {user_name}. {content}"
 
             # Run the agent
             result = await self._Runner.run(
                 self._agent,
-                input=content,
-                messages=messages_for_context[:-1],  # Pass history as previous messages
+                input=input_text,
                 run_config=self._run_config
             )
 
@@ -601,34 +589,22 @@ class AgentService:
                 if name and name.lower() != "there":
                     user_name = name
 
-            # Build input with conversation history for context
-            # Use the messages directly as input history for the Runner
-            messages_for_context = []
-
-            # Add conversation history
+            # Build the input with user context and conversation history
+            input_text = content
             if conversation_history and len(conversation_history) > 0:
-                recent_messages = conversation_history[-5:]
-                for msg in recent_messages:
-                    role = "user" if msg.get("sender_type") == "USER" else "assistant"
-                    messages_for_context.append({
-                        "role": role,
-                        "content": msg.get('content', '')
-                    })
-
-            # Add the current message
-            current_msg = content
-            if user_name:
-                current_msg = f"(Your name is {user_name}) {content}"
-
-            messages_for_context.append({
-                "role": "user",
-                "content": current_msg
-            })
+                # Format conversation history as context
+                history_parts = []
+                for msg in conversation_history[-5:]:
+                    sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
+                    history_parts.append(f"{sender}: {msg.get('content', '')}")
+                history = "\n".join(history_parts)
+                input_text = f"Our conversation so far:\n{history}\n\nUser: {content}"
+            elif user_name:
+                input_text = f"My name is {user_name}. {content}"
 
             result = await self._Runner.run(
                 self._agent,
-                input=content,
-                messages=messages_for_context[:-1],  # Pass history as previous messages
+                input=input_text,
                 run_config=self._run_config
             )
 
