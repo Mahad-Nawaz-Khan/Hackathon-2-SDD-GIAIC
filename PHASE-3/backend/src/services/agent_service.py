@@ -66,6 +66,12 @@ def _get_task_service():
     return task_service
 
 
+def _get_tag_service():
+    """Lazy import of tag service to avoid circular imports."""
+    from ..services.tag_service import tag_service
+    return tag_service
+
+
 def _mark_operation_performed(op_type: str, details: Optional[Dict[str, Any]] = None):
     """Mark that an operation was performed by a tool."""
     global _operation_performed
@@ -297,7 +303,7 @@ def _resolve_tags(tags_str: str) -> List[int]:
         return []
 
     from ..models.tag import Tag
-    tag_service = _get_task_service()
+    tag_service = _get_tag_service()
 
     tag_names = [t.strip() for t in tags_str.split(",") if t.strip()]
     tag_ids = []
@@ -321,6 +327,12 @@ def _resolve_tags(tags_str: str) -> List[int]:
                     _tool_context.user_id,
                     _tool_context.db_session
                 )
+                tag_ids.append(new_tag.id)
+                logger.info(f"Auto-created tag '{tag_name}' (ID: {new_tag.id})")
+            except Exception as e:
+                logger.warning(f"Could not auto-create tag '{tag_name}': {e}")
+
+    return tag_ids
                 tag_ids.append(new_tag.id)
             except:
                 pass  # Skip if creation fails
@@ -358,7 +370,7 @@ def create_tag_impl(name: str, color: str = "#94A3B8") -> str:
         return "I'm sorry, I couldn't create the tag due to a server error."
 
     try:
-        tag_service = _get_task_service()
+        tag_service = _get_tag_service()
 
         # Check if tag already exists
         from ..models.tag import Tag
@@ -370,7 +382,7 @@ def create_tag_impl(name: str, color: str = "#94A3B8") -> str:
         ).first()
 
         if existing:
-            return f"Tag '{name}' already exists."
+            return f"Tag '{name}' already exists (ID: {existing.id})."
 
         new_tag = tag_service.create_tag(
             {"name": name, "color": color},
@@ -397,7 +409,7 @@ def list_tags_impl() -> str:
         return "I'm sorry, I couldn't retrieve tags due to a server error."
 
     try:
-        tag_service = _get_task_service()
+        tag_service = _get_tag_service()
 
         tags = tag_service.get_tags(
             user_id=_tool_context.user_id,
