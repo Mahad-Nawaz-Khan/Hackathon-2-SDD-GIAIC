@@ -41,23 +41,43 @@ class ToolContext:
 # Global context (set during each agent run)
 _tool_context: Optional[ToolContext] = None
 
+# Track if any tool operation was performed during the current request
+_operation_performed: Optional[Dict[str, Any]] = None
+
 
 def _set_tool_context(db_session: Session, user_id: int):
     """Set the global tool context for the current request."""
-    global _tool_context
+    global _tool_context, _operation_performed
     _tool_context = ToolContext(db_session=db_session, user_id=user_id)
+    _operation_performed = None  # Reset operations tracker
 
 
 def _clear_tool_context():
     """Clear the global tool context."""
-    global _tool_context
+    global _tool_context, _operation_performed
     _tool_context = None
+    _operation_performed = None
 
 
 def _get_task_service():
     """Lazy import of task service to avoid circular imports."""
     from ..services.task_service import task_service
     return task_service
+
+
+def _mark_operation_performed(op_type: str, details: Optional[Dict[str, Any]] = None):
+    """Mark that an operation was performed by a tool."""
+    global _operation_performed
+    _operation_performed = {"type": op_type}
+    if details:
+        _operation_performed.update(details)
+
+
+def _get_operation_performed() -> Optional[Dict[str, Any]]:
+    """Get the operation that was performed and reset the tracker."""
+    global _operation_performed
+    op = _operation_performed
+    return op
 
 
 # ============================================================================
@@ -105,6 +125,8 @@ def create_task_impl(title: str, description: str = "", priority: str = "MEDIUM"
         )
 
         logger.info(f"Created task {task.id} for user {_tool_context.user_id}")
+        # Mark operation for frontend refresh
+        _mark_operation_performed("create_task", {"task_id": task.id})
         return f"✓ Task '{task.title}' created successfully!"
     except Exception as e:
         logger.error(f"Error creating task: {str(e)}")
@@ -155,6 +177,8 @@ def update_task_impl(task_id: int, title: str = "", description: str = "", prior
             return f"Sorry, I couldn't find task #{task_id} to update."
 
         logger.info(f"Updated task {task_id} for user {_tool_context.user_id}")
+        # Mark operation for frontend refresh
+        _mark_operation_performed("update_task", {"task_id": task_id})
         return f"✓ Task '{updated_task.title}' updated successfully!"
     except Exception as e:
         logger.error(f"Error updating task: {str(e)}")
@@ -186,6 +210,8 @@ def toggle_task_completion_impl(task_id: int) -> str:
 
         status = "completed" if task.completed else "not completed"
         logger.info(f"Toggled task {task_id} to {status} for user {_tool_context.user_id}")
+        # Mark operation for frontend refresh
+        _mark_operation_performed("toggle_task", {"task_id": task_id})
         return f"✓ Task '{task.title}' is now {status}!"
     except Exception as e:
         logger.error(f"Error toggling task completion: {str(e)}")
@@ -223,6 +249,8 @@ def delete_task_impl(task_id: int) -> str:
 
         if success:
             logger.info(f"Deleted task {task_id} for user {_tool_context.user_id}")
+            # Mark operation for frontend refresh
+            _mark_operation_performed("delete_task", {"task_id": task_id})
             return f"✓ Task '{task.title}' deleted successfully!"
         else:
             return f"Sorry, I couldn't delete task #{task_id}."
@@ -272,6 +300,8 @@ def delete_tasks_by_search_impl(search_term: str) -> str:
 
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} tasks matching '{search_term}' for user {_tool_context.user_id}")
+            # Mark operation for frontend refresh
+            _mark_operation_performed("delete_tasks", {"count": deleted_count})
             if deleted_count == 1:
                 return f"✓ Deleted {deleted_titles[0]}!"
             else:
@@ -776,14 +806,42 @@ class AgentService:
 
     def _extract_operations(self, result) -> Optional[Dict[str, Any]]:
         """Extract information about operations performed from the agent result."""
+        # First check if any tool marked an operation as performed
+        global _operation_performed
+        if _operation_performed:
+            return _operation_performed
+
         try:
+            # Check various possible structures from OpenAI Agents SDK
+            # The result structure may vary depending on SDK version
+
+            # Method 1: Check for new_items (older SDK versions)
             if hasattr(result, 'new_items') and result.new_items:
                 for item in result.new_items:
-                    if hasattr(item, 'type') and 'tool_call' in item.type:
+                    if hasattr(item, 'type') and 'tool_call' in str(item.type):
                         return {
-                            "type": getattr(item.agent, 'name', 'unknown') if hasattr(item, 'agent') else 'tool',
-                            "tool_used": item.name if hasattr(item, 'name') else 'unknown'
+                            "type": "tool_call",
+                            "tool_used": getattr(item, 'name', 'unknown')
                         }
+
+            # Method 2: Check for raw_responses or context
+            if hasattr(result, 'raw_responses') and result.raw_responses:
+                # Tool calls were made
+                return {"type": "tool_call", "count": len(result.raw_responses)}
+
+            # Method 3: Check if final_output contains task operation keywords
+            if hasattr(result, 'final_output') and result.final_output:
+                output = result.final_output
+                if any(keyword in output for keyword in ['✓ Task', 'created successfully!', 'updated successfully!', 'deleted successfully!', 'is now', 'Deleted']):
+                    return {"type": "task_operation", "indicated_by": "response_content"}
+
+            # Method 4: Check context for tool calls
+            if hasattr(result, 'context') and result.context:
+                context = result.context
+                if hasattr(context, 'tool_calls') and context.tool_calls:
+                    return {"type": "tool_call", "count": len(context.tool_calls)}
+
+            logger.debug(f"Could not extract operations from result type: {type(result)}, attributes: {dir(result)}")
         except Exception as e:
             logger.debug(f"Could not extract operations: {e}")
         return None

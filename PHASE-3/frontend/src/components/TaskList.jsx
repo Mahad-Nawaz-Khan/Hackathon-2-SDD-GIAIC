@@ -96,6 +96,17 @@ export const TaskList = ({ createdTask }) => {
     return () => window.removeEventListener('tags:changed', handleTagsChanged);
   }, []);
 
+  // Listen for tasks updated event from chat bot
+  useEffect(() => {
+    const handleTasksUpdated = () => {
+      console.log('[TaskList] Tasks updated event received, refreshing...');
+      fetchTasksFromAPI();
+    };
+
+    window.addEventListener('tasksUpdated', handleTasksUpdated);
+    return () => window.removeEventListener('tasksUpdated', handleTasksUpdated);
+  }, []);
+
   useEffect(() => {
     const normalizedSearch = searchInput.trim();
     const timeout = setTimeout(() => {
