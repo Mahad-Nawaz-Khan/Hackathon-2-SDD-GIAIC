@@ -5,7 +5,7 @@ This router provides Server-Sent Events (SSE) streaming for real-time
 AI responses using the OpenAI Agents SDK.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -204,6 +204,60 @@ async def _process_with_rule_based(
         "model_used": model_used,
         "message_id": ai_message.id
     }
+
+
+@router.get("/stream")
+@limiter.limit("30/minute")
+async def stream_chat_get(
+    request: Request,
+    content: str = Query(..., description="The user's message content"),
+    session_id: str = Query(..., description="The session identifier"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db_session: Session = Depends(get_session)
+):
+    """
+    GET endpoint for streaming chat (for easier frontend integration).
+
+    Query parameters:
+    - content: The user's message
+    - session_id: The session identifier
+    """
+    try:
+        # Get or create user from Clerk payload
+        user = await auth_service.get_or_create_user_from_clerk_payload(current_user, db_session)
+        user_id = user.id
+
+        # Get conversation history for context
+        messages = chat_service.get_chat_history(user_id, session_id, db_session, limit=10)
+        conversation_history = [
+            {
+                "sender_type": msg.sender_type,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat()
+            }
+            for msg in messages
+        ]
+
+        # Return streaming response
+        return StreamingResponse(
+            _stream_response_generator(
+                content=content,
+                user_id=user_id,
+                session_id=session_id,
+                db_session=db_session,
+                conversation_history=conversation_history
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            }
+        )
+
+    except Exception as e:
+        logger.exception(f"Error processing streaming chat message: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to process message")
 
 
 @router.post("/message/stream")
