@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-chatbot-backend
+  labels:
+    app: todo-chatbot
+    component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-chatbot
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: todo-chatbot
+        component: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: backend
+          image: hackathon-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: CLERK_ISSUER
+              value: "https://civil-corgi-51.clerk.accounts.dev"
+            - name: CLERK_JWKS_URL
+              value: "https://civil-corgi-51.clerk.accounts.dev/.well-known/jwks.json"
+            - name: CLERK_SECRET_KEY
+              value: "sk_test_ktJsw3Ab23FsuUTqHgcAidFPma47Br1BPMGLmEChuF"
+            - name: CORS_ORIGINS
+              value: "*"  # Allow all origins for local development
+            - name: DATABASE_URL
+              value: "postgresql://neondb_owner:npg_GCY2y8SAlOqF@ep-round-field-a1sjfms9-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+            - name: GEMINI_API_KEY
+              value: "AIzaSyBYYNex3-T_yOXSDBgrPv1fz14SBFFOliE"
+            - name: GEMINI_MODEL
+              value: "gemini-2.5-flash-lite"
+            - name: Z_AI_API_KEY
+              value: "395d0491851447758aca123043d35b12.4PfFWezLEmGSPbd6"
+            - name: Z_AI_MODEL
+              value: "glm-4.5-air"
+            - name: PORT
+              value: "8000"
+          securityContext:
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-chatbot-backend
+  labels:
+    app: todo-chatbot
+    component: backend
+spec:
+  type: NodePort
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+      nodePort: 30800  # Fixed port for backend
+  selector:
+    app: todo-chatbot
+    component: backend

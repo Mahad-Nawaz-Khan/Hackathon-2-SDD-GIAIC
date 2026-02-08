@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: AI Chatbot API
+  description: API for the AI Chatbot System integrated with the TODO application
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api
+    description: Development server
+  - url: https://api.todoapp.com/v1
+    description: Production server
+
+paths:
+  /chat/messages:
+    post:
+      summary: Send a message to the AI chatbot
+      description: Process a user message and return the AI response
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: Successfully processed the message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendMessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /chat/conversations:
+    get:
+      summary: Get user's chat conversations
+      description: Retrieve a list of chat sessions for the authenticated user
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved conversations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetConversationsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /chat/conversations/{conversationId}/messages:
+    get:
+      summary: Get messages from a specific conversation
+      description: Retrieve messages from a specific chat conversation
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the conversation
+      responses:
+        '200':
+          description: Successfully retrieved messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMessagesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SendMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: The user's message to the chatbot
+          example: "Create a task to buy groceries by Friday"
+        sessionId:
+          type: string
+          description: Optional session ID to maintain conversation context
+          example: "sess_abc123xyz"
+
+    SendMessageResponse:
+      type: object
+      required:
+        - response
+        - conversationId
+        - intent
+      properties:
+        response:
+          type: string
+          description: The AI's response to the user
+          example: "I've created a task 'buy groceries' with due date set to this Friday."
+        conversationId:
+          type: string
+          description: Unique identifier for the conversation
+          example: "conv_def456uvw"
+        intent:
+          $ref: '#/components/schemas/Intent'
+        requiresConfirmation:
+          type: boolean
+          description: Whether the operation requires user confirmation
+        suggestedActions:
+          type: array
+          items:
+            type: string
+          description: Optional suggested follow-up actions
+          example: ["View task details", "Modify due date", "Add to specific project"]
+
+    GetConversationsResponse:
+      type: object
+      required:
+        - conversations
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationSummary'
+
+    GetMessagesResponse:
+      type: object
+      required:
+        - messages
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+
+    ConversationSummary:
+      type: object
+      required:
+        - id
+        - title
+        - createdAt
+        - lastMessageAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the conversation
+        title:
+          type: string
+          description: Brief title summarizing the conversation topic
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the conversation started
+        lastMessageAt:
+          type: string
+          format: date-time
+          description: Timestamp of the last message in the conversation
+
+    ChatMessage:
+      type: object
+      required:
+        - id
+        - senderType
+        - content
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the message
+        senderType:
+          type: string
+          enum: [USER, AI]
+          description: Indicates whether the message was sent by user or AI
+        content:
+          type: string
+          description: The actual message content
+        intent:
+          $ref: '#/components/schemas/Intent'
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the message was created
+
+    Intent:
+      type: object
+      required:
+        - type
+        - confidence
+      properties:
+        type:
+          type: string
+          enum: [CREATE_TASK, UPDATE_TASK, DELETE_TASK, SEARCH_TASKS, LIST_TASKS, READ_TASK, GENERAL_QUERY]
+          description: The recognized intent from the user's message
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Confidence score of the intent recognition
+        parameters:
+          type: object
+          description: Extracted parameters related to the intent
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: User does not have permission to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message

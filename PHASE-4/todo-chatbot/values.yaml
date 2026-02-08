@@ -1,0 +1,160 @@
+# Default values for todo-chatbot
+# For local deployment with Minikube
+
+# Global settings
+global:
+  # For local development, use NodePort or LoadBalancer
+  environment: local
+
+# ============================================
+# Backend Service (FastAPI)
+# ============================================
+backend:
+  enabled: true
+
+  image:
+    repository: hackathon-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  container:
+    port: 8000
+
+  # Environment variables for backend
+  env:
+    CLERK_ISSUER: "https://civil-corgi-51.clerk.accounts.dev"
+    CLERK_JWKS_URL: "https://civil-corgi-51.clerk.accounts.dev/.well-known/jwks.json"
+    CLERK_SECRET_KEY: "sk_test_ktJsw3Ab23FsuUTqHgcAidFPma47Br1BPMGLmEChuF"
+    CORS_ORIGINS: "http://localhost:3000,http://todo-chatbot.local"
+    DATABASE_URL: "postgresql://neondb_owner:npg_GCY2y8SAlOqF@ep-round-field-a1sjfms9-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    GEMINI_API_KEY: "AIzaSyBYYNex3-T_yOXSDBgrPv1fz14SBFFOliE"
+    GEMINI_MODEL: "gemini-2.5-flash-lite"
+    Z_AI_API_KEY: "395d0491851447758aca123043d35b12.4PfFWezLEmGSPbd6"
+    Z_AI_MODEL: "glm-4.5-air"
+    PORT: "8000"
+
+  service:
+    type: NodePort
+    port: 8000
+    nodePort: 30800
+    targetPort: 8000
+
+  ingress:
+    enabled: true
+    className: nginx
+    host: api.todo-chatbot.local
+    path: /
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  # Auto-scaling
+  autoscaling:
+    enabled: false
+
+# ============================================
+# Frontend Service (Next.js)
+# ============================================
+frontend:
+  enabled: true
+
+  image:
+    repository: hackathon-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  container:
+    port: 3000
+
+  # Environment variables for frontend
+  env:
+    NODE_ENV: "production"
+    NEXT_PUBLIC_API_URL: "http://todo-chatbot-backend:8000"
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_Y2l2aWwtY29yZ2ktNTEuY2xlcmsuYWNjb3VudHMuZGV2JA"
+    PORT: "3000"
+
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30801
+    targetPort: 3000
+
+  ingress:
+    enabled: true
+    className: nginx
+    host: todo-chatbot.local
+    path: /
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  # Auto-scaling
+  autoscaling:
+    enabled: false
+
+# ============================================
+# Common Settings
+# ============================================
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

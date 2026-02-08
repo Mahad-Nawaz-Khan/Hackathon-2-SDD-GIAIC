@@ -1,0 +1,10 @@
+apiVersion: v2
+name: todo-chatbot
+description: A Helm chart for TODO Chatbot - Frontend (Next.js) and Backend (FastAPI)
+
+type: application
+
+version: 0.1.0
+
+# This is the version number of the application being deployed
+appVersion: "1.0.0"
