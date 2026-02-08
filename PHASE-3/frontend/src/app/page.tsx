@@ -155,14 +155,7 @@ export default function Dashboard() {
                 <TagList />
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <h3 className="font-medium text-white mb-3">Quick Chat</h3>
-                  <ChatInterface initialMessages={[
-                    {
-                      id: 'quick-chat-1',
-                      text: 'Need help with your tasks?',
-                      sender: 'ai',
-                      timestamp: new Date(Date.now() - 60000),
-                    }
-                  ]} />
+                  <ChatInterface initialMessages={[]} />
                 </div>
               </div>
             </main>
