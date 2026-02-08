@@ -69,31 +69,12 @@ async def _stream_response_generator(
         # Send initial event
         yield f"event: message_created\ndata: {json.dumps({'id': user_message.id, 'content': content})}\n\n"
 
-        # Check if agent service is available
+        # Process with streaming agent (AI is required)
         if not agent_service.is_available():
-            # Fall back to rule-based processing
-            # Get the response from the non-streaming endpoint
-            response_data = await _process_with_rule_based(content, user_id, session_id, db_session, user_message)
-
-            # Send in the format expected by frontend
-            yield f"data: {json.dumps({'type': 'content_delta', 'content': response_data['content']})}\n\n"
-            final_data = {
-                "type": "final",
-                "content": response_data['content'],
-                "operation_performed": response_data.get("operation_performed"),
-                "model_used": response_data.get("model_used"),
-                "message": {
-                    "id": str(response_data.get("message_id", "")),
-                    "content": response_data['content'],
-                    "sender_type": "AI",
-                    "created_at": user_message.created_at.isoformat()
-                }
-            }
-            yield f"data: {json.dumps(final_data)}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': 'AI service is not available. Please ensure GEMINI_API_KEY is configured.'})}\n\n"
             yield f"data: [DONE]\n\n"
             return
 
-        # Process with streaming agent
         full_response_content = ""
         operation_performed = None
         model_used = None
@@ -157,73 +138,6 @@ async def _stream_response_generator(
     except Exception as e:
         logger.exception(f"Error in stream generator: {str(e)}")
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-
-
-async def _process_with_rule_based(
-    content: str,
-    user_id: int,
-    session_id: str,
-    db_session: Session,
-    user_message
-) -> Dict[str, Any]:
-    """
-    Fallback processing using rule-based intent classification.
-
-    This is used when OpenAI Agents SDK is not available.
-    """
-    from ..models.chat_models import IntentTypeEnum
-    from ..tools.task_crud_tools import task_crud_tools
-
-    # Get the intent
-    intent = user_message.intent
-    confidence = user_message.intent_confidence or 0.0
-
-    ai_response_content = None
-    operation_performed = None
-    model_used = "Rule-based Intent Classifier (fallback)"
-
-    if confidence < 0.6 and intent:
-        ai_response_content = "I'm not sure I understood that correctly. Could you please rephrase?"
-    elif intent == IntentTypeEnum.CREATE_TASK.value:
-        params = chat_service.classify_intent(content).parameters
-        if "title" not in params and content:
-            params["title"] = content[:100]
-
-        result = task_crud_tools.create_task(params, user_id, db_session)
-        if result.get("success"):
-            ai_response_content = result.get("message", "Task created successfully!")
-            operation_performed = {"type": "create_task", "result": result.get("task")}
-        else:
-            ai_response_content = result.get("message", "I couldn't create that task.")
-
-    elif intent == IntentTypeEnum.LIST_TASKS.value:
-        result = task_crud_tools.search_tasks({"completed": False, "limit": 10}, user_id, db_session)
-        if result.get("success") and result.get("tasks"):
-            task_count = result.get("count", 0)
-            ai_response_content = f"Here are your pending tasks ({task_count}):\n\n"
-            for task in result.get("tasks", []):
-                status = "✓" if task["completed"] else "○"
-                ai_response_content += f"{status} {task['title']}\n"
-            operation_performed = {"type": "list_tasks", "count": task_count}
-        else:
-            ai_response_content = "You don't have any pending tasks. Great job!"
-    else:
-        ai_response_content = "I'm here to help you manage your tasks! You can ask me to create, list, complete, or delete tasks."
-
-    # Create AI message
-    ai_message = chat_service.create_ai_message(
-        user_id=user_id,
-        session_id=session_id,
-        content=ai_response_content,
-        db_session=db_session
-    )
-
-    return {
-        "content": ai_response_content,
-        "operation_performed": operation_performed,
-        "model_used": model_used,
-        "message_id": ai_message.id
-    }
 
 
 @router.get("/stream")
