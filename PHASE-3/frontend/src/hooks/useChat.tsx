@@ -22,25 +22,30 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const [operationPerformed, setOperationPerformed] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Get Clerk token
-  const { getToken, isLoaded } = useAuth();
+  // Get Clerk token - use useAuth() to get auth state
+  const { isLoaded, isSignedIn, getToken, userId } = useAuth();
 
   const { autoLoadHistory = true, enableStreaming = true } = options;
 
-  // Set up the token getter for chatService
+  // Set up the token getter for chatService whenever auth state changes
   useEffect(() => {
-    if (getToken && isLoaded) {
-      chatService.setTokenGetter(async () => {
-        const token = await getToken();
-        return token;
-      });
+    console.log('[useChat] Auth state:', { isLoaded, isSignedIn, hasGetToken: !!getToken });
+    if (isLoaded && getToken) {
+      chatService.setTokenGetter(getToken);
+      console.log('[useChat] Token getter set successfully');
     }
-  }, [getToken, isLoaded]);
+  }, [isLoaded, getToken]);
 
   /**
    * Load chat history from the server
    */
   const loadHistory = useCallback(async () => {
+    // Only load if user is signed in
+    if (!isSignedIn) {
+      console.log('[useChat] User not signed in, skipping history load');
+      return;
+    }
+
     try {
       setIsLoading(true);
       const history = await chatService.getHistory();
@@ -52,11 +57,11 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isSignedIn]);
 
-  // Load chat history on mount (after Clerk is loaded)
+  // Load chat history on mount (after Clerk is loaded and user is signed in)
   useEffect(() => {
-    if (autoLoadHistory && isLoaded) {
+    if (autoLoadHistory && isLoaded && isSignedIn) {
       loadHistory();
     }
 
@@ -66,12 +71,24 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
         abortControllerRef.current.abort();
       }
     };
-  }, [autoLoadHistory, isLoaded, loadHistory]);
+  }, [autoLoadHistory, isLoaded, isSignedIn, loadHistory]);
 
   /**
    * Send a message to the chatbot
    */
   const sendMessage = useCallback(async (text: string) => {
+    // Check if user is authenticated
+    if (!isLoaded || !isSignedIn) {
+      console.error('[useChat] Cannot send message: User not authenticated', { isLoaded, isSignedIn });
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: 'Please sign in to use the chat feature.',
+        sender: 'ai',
+        timestamp: new Date(),
+      }]);
+      return;
+    }
+
     if (!text.trim() || isLoading) return;
 
     // Cancel any ongoing request
@@ -217,7 +234,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       );
       setIsLoading(false);
     }
-  }, [isLoading, enableStreaming]);
+  }, [isLoading, enableStreaming, isSignedIn, isLoaded]);
 
   /**
    * Clear all messages
