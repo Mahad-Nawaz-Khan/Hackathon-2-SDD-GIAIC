@@ -100,7 +100,7 @@ export const TaskList = ({ createdTask }) => {
   useEffect(() => {
     const handleTasksUpdated = () => {
       console.log('[TaskList] Tasks updated event received, refreshing...');
-      fetchTasksFromAPI();
+      fetchTasksFromAPI({ replace: true }); // Pass replace flag to avoid merging
     };
 
     window.addEventListener('tasksUpdated', handleTasksUpdated);
@@ -196,7 +196,8 @@ export const TaskList = ({ createdTask }) => {
     return sorted;
   }, [tasks, filters, sortConfig]);
 
-  const fetchTasksFromAPI = async () => {
+  const fetchTasksFromAPI = async (options = {}) => {
+    const { replace = false } = options; // If true, replace tasks instead of merging
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
@@ -248,18 +249,24 @@ export const TaskList = ({ createdTask }) => {
         offset += pageSize;
       }
 
-      setTasks((prev) => {
-        const byId = new Map();
-        for (const task of allTasks) {
-          byId.set(task.id, task);
-        }
-        for (const task of prev) {
-          if (!byId.has(task.id)) {
+      if (replace) {
+        // Replace tasks entirely (used for refresh after chat operations)
+        setTasks(allTasks);
+      } else {
+        // Merge with existing tasks (used for initial load)
+        setTasks((prev) => {
+          const byId = new Map();
+          for (const task of allTasks) {
             byId.set(task.id, task);
           }
-        }
-        return Array.from(byId.values());
-      });
+          for (const task of prev) {
+            if (!byId.has(task.id)) {
+              byId.set(task.id, task);
+            }
+          }
+          return Array.from(byId.values());
+        });
+      }
     } catch (err) {
       if (requestIdRef.current !== requestId) {
         return;
