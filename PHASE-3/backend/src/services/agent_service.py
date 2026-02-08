@@ -501,7 +501,7 @@ class AgentService:
                     input_text = "Previous conversation:\n" + "\n".join(context_parts) + f"\n\nCurrent user message: {content}"
 
             # Run the agent
-            result = self._Runner.run_sync(
+            result = await self._Runner.run(
                 self._agent,
                 input=input_text,
                 run_config=self._run_config
@@ -568,7 +568,7 @@ class AgentService:
                 if context_parts:
                     input_text = "Previous conversation:\n" + "\n".join(context_parts) + f"\n\nCurrent user message: {content}"
 
-            result = self._Runner.run_sync(
+            result = await self._Runner.run(
                 self._agent,
                 input=input_text,
                 run_config=self._run_config
