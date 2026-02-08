@@ -261,7 +261,7 @@ def delete_task_impl(task_id: int) -> str:
 
 def delete_tasks_by_search_impl(search_term: str) -> str:
     """
-    Delete tasks that match a search term in their title or description.
+    Delete tasks that match a search term using fuzzy matching.
 
     Args:
         search_term: The search term to match against task titles
@@ -275,22 +275,33 @@ def delete_tasks_by_search_impl(search_term: str) -> str:
 
     try:
         task_service = _get_task_service()
-        from ..models.task import Task
 
-        # Search for tasks matching the term
-        tasks = task_service.get_tasks(
+        # Get ALL tasks to find matches
+        all_tasks = task_service.get_tasks(
             user_id=_tool_context.user_id,
             db_session=_tool_context.db_session,
-            search=search_term,
-            limit=50
+            limit=100
         )
 
-        if not tasks:
+        # Find all matching tasks (score > 0)
+        matching_tasks = []
+        search_lower = search_term.lower().strip()
+
+        for task in all_tasks:
+            title_lower = (task.title or "").lower()
+            desc_lower = (task.description or "").lower()
+
+            # Check if search term matches
+            if (search_lower in title_lower or search_lower in desc_lower or
+                any(word in title_lower or word in desc_lower for word in search_lower.split() if len(word) > 2)):
+                matching_tasks.append(task)
+
+        if not matching_tasks:
             return f"No tasks found matching '{search_term}'. Nothing was deleted."
 
         deleted_count = 0
         deleted_titles = []
-        for task in tasks:
+        for task in matching_tasks:
             success = task_service.delete_task(
                 task.id, _tool_context.user_id, _tool_context.db_session
             )
@@ -300,7 +311,6 @@ def delete_tasks_by_search_impl(search_term: str) -> str:
 
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} tasks matching '{search_term}' for user {_tool_context.user_id}")
-            # Mark operation for frontend refresh
             _mark_operation_performed("delete_tasks", {"count": deleted_count})
             if deleted_count == 1:
                 return f"✓ Deleted {deleted_titles[0]}!"
@@ -490,12 +500,54 @@ def show_conversation_summary_impl() -> str:
         return "Sorry, I couldn't retrieve the conversation summary."
 
 
+def get_all_tasks_impl() -> str:
+    """
+    Get all tasks for the user so you can find the right one to operate on.
+
+    Returns:
+        A list of all tasks with their IDs, titles, and status
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't retrieve tasks due to a server error."
+
+    try:
+        task_service = _get_task_service()
+
+        # Get ALL tasks
+        tasks = task_service.get_tasks(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            limit=100
+        )
+
+        if not tasks:
+            return "You have no tasks."
+
+        result_lines = [f"Your tasks ({len(tasks)} total):"]
+        for task in tasks:
+            status = "✓" if task.completed else "○"
+            priority_tag = f"[{task.priority}]" if task.priority else ""
+            result_lines.append(f"ID {task.id}: {status} {task.title} {priority_tag}")
+            if task.description:
+                result_lines.append(f"    Description: {task.description}")
+
+        return "\n".join(result_lines)
+
+    except Exception as e:
+        logger.error(f"Error getting all tasks: {str(e)}")
+        return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
+
+
 def complete_task_by_search_impl(search_term: str) -> str:
     """
-    Mark a task as completed by searching for it by title/description.
+    Mark a task as completed. Use this when user says they completed something.
+
+    IMPORTANT: First call get_all_tasks to see all available tasks, then use
+    the exact task ID to mark it complete.
 
     Args:
-        search_term: The search term to find the task
+        search_term: Description of what the user completed (for context only)
 
     Returns:
         A message describing the result
@@ -507,158 +559,134 @@ def complete_task_by_search_impl(search_term: str) -> str:
     try:
         task_service = _get_task_service()
 
-        # Search for tasks matching the term
+        # Get ALL incomplete tasks
         tasks = task_service.get_tasks(
             user_id=_tool_context.user_id,
             db_session=_tool_context.db_session,
-            search=search_term,
-            limit=10
+            completed=False,
+            limit=100
         )
 
         if not tasks:
-            return f"No tasks found matching '{search_term}'."
-        if len(tasks) > 1:
-            return f"Found {len(tasks)} tasks matching '{search_term}'. Please be more specific."
+            return f"No incomplete tasks found."
 
-        # Get the first (only) matching task
-        task = tasks[0]
-        if task.completed:
-            return f"Task '{task.title}' is already completed."
+        # Return the list so LLM can decide
+        result_lines = [f"Incomplete tasks ({len(tasks)}):"]
+        for task in tasks:
+            status = "○"
+            priority_tag = f"[{task.priority}]" if task.priority else ""
+            result_lines.append(f"ID {task.id}: {status} {task.title} {priority_tag}")
+            if task.description:
+                result_lines.append(f"    Description: {task.description}")
 
-        # Toggle to completed
-        updated_task = task_service.toggle_task_completion(
-            task.id, _tool_context.user_id, _tool_context.db_session
-        )
+        # Add instruction for LLM
+        result_lines.append("\nWhich task matches '" + search_term + "'? Call toggle_task with the specific task ID.")
 
-        if updated_task:
-            logger.info(f"Completed task {task.id} for user {_tool_context.user_id}")
-            _mark_operation_performed("toggle_task", {"task_id": task.id})
-            return f"✓ Marked '{task.title}' as completed!"
-        else:
-            return f"Sorry, I couldn't update that task."
+        return "\n".join(result_lines)
 
     except Exception as e:
-        logger.error(f"Error completing task by search: {str(e)}")
-        return f"Sorry, I couldn't complete that task. Error: {str(e)}"
+        logger.error(f"Error getting incomplete tasks: {str(e)}")
+        return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
 def uncomplete_task_by_search_impl(search_term: str) -> str:
     """
-    Mark a task as not completed (uncomplete) by searching for it by title/description.
+    Show completed tasks so the user can choose which one to mark incomplete.
+
+    IMPORTANT: Returns the list of completed tasks. Then use toggle_task with the specific ID.
 
     Args:
-        search_term: The search term to find the task
+        search_term: Description of what the user wants to uncomplete (for context only)
 
     Returns:
-        A message describing the result
+        A list of completed tasks
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't update the task due to a server error."
+        return "I'm sorry, I couldn't retrieve tasks due to a server error."
 
     try:
         task_service = _get_task_service()
 
-        # Search for tasks matching the term
+        # Get ALL completed tasks
         tasks = task_service.get_tasks(
             user_id=_tool_context.user_id,
             db_session=_tool_context.db_session,
-            search=search_term,
-            completed=True,  # Only search completed tasks
-            limit=10
+            completed=True,
+            limit=100
         )
 
         if not tasks:
-            return f"No completed tasks found matching '{search_term}'."
-        if len(tasks) > 1:
-            return f"Found {len(tasks)} completed tasks matching '{search_term}'. Please be more specific."
+            return f"No completed tasks found."
 
-        # Get the first (only) matching task
-        task = tasks[0]
-        if not task.completed:
-            return f"Task '{task.title}' is already not completed."
+        # Return the list so LLM can decide
+        result_lines = [f"Completed tasks ({len(tasks)}):"]
+        for task in tasks:
+            status = "✓"
+            priority_tag = f"[{task.priority}]" if task.priority else ""
+            result_lines.append(f"ID {task.id}: {status} {task.title} {priority_tag}")
+            if task.description:
+                result_lines.append(f"    Description: {task.description}")
 
-        # Toggle to not completed
-        updated_task = task_service.toggle_task_completion(
-            task.id, _tool_context.user_id, _tool_context.db_session
-        )
+        # Add instruction for LLM
+        result_lines.append("\nWhich task matches '" + search_term + "'? Call toggle_task with the specific task ID.")
 
-        if updated_task:
-            logger.info(f"Uncompleted task {task.id} for user {_tool_context.user_id}")
-            _mark_operation_performed("toggle_task", {"task_id": task.id})
-            return f"✓ Marked '{task.title}' as not completed!"
-        else:
-            return f"Sorry, I couldn't update that task."
+        return "\n".join(result_lines)
 
     except Exception as e:
-        logger.error(f"Error uncompleting task by search: {str(e)}")
-        return f"Sorry, I couldn't update that task. Error: {str(e)}"
+        logger.error(f"Error getting completed tasks: {str(e)}")
+        return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
 def update_task_by_search_impl(search_term: str, title: str = "", description: str = "", priority: str = "") -> str:
     """
-    Update a task by searching for it by title/description.
+    Show all tasks so the LLM can decide which one to update.
+
+    IMPORTANT: Returns the list of all tasks. Then use update_task with the specific task ID.
 
     Args:
-        search_term: The search term to find the task
+        search_term: Description of which task to update (for context only)
         title: New task title (optional)
         description: New task description (optional)
         priority: New priority level - HIGH, MEDIUM, or LOW (optional)
 
     Returns:
-        A message describing the result
+        A list of all tasks
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't update the task due to a server error."
+        return "I'm sorry, I couldn't retrieve tasks due to a server error."
 
     try:
-        from ..schemas.task import TaskUpdateRequest
         task_service = _get_task_service()
 
-        # Search for tasks matching the term
+        # Get ALL tasks
         tasks = task_service.get_tasks(
             user_id=_tool_context.user_id,
             db_session=_tool_context.db_session,
-            search=search_term,
-            limit=10
+            limit=100
         )
 
         if not tasks:
-            return f"No tasks found matching '{search_term}'."
-        if len(tasks) > 1:
-            return f"Found {len(tasks)} tasks matching '{search_term}'. Please be more specific."
+            return "You have no tasks to update."
 
-        # Get the first (only) matching task
-        task = tasks[0]
+        # Return the list so LLM can decide
+        result_lines = [f"All tasks ({len(tasks)}):"]
+        for task in tasks:
+            status = "✓" if task.completed else "○"
+            priority_tag = f"[{task.priority}]" if task.priority else ""
+            result_lines.append(f"ID {task.id}: {status} {task.title} {priority_tag}")
+            if task.description:
+                result_lines.append(f"    Description: {task.description}")
 
-        # Build update data
-        update_data = {}
-        if title:
-            update_data["title"] = title
-        if description:
-            update_data["description"] = description
-        if priority:
-            update_data["priority"] = priority
+        # Add instruction for LLM
+        result_lines.append(f"\nWhich task matches '{search_term}'? Call update_task with the specific task ID and new values.")
 
-        if not update_data:
-            return "Please provide at least one field to update (title, description, or priority)."
-
-        task_update = TaskUpdateRequest(**update_data)
-        updated_task = task_service.update_task(
-            task.id, task_update, _tool_context.user_id, _tool_context.db_session
-        )
-
-        if updated_task:
-            logger.info(f"Updated task {task.id} for user {_tool_context.user_id}")
-            _mark_operation_performed("update_task", {"task_id": task.id})
-            return f"✓ Updated '{task.title}' successfully!"
-        else:
-            return f"Sorry, I couldn't update that task."
+        return "\n".join(result_lines)
 
     except Exception as e:
-        logger.error(f"Error updating task by search: {str(e)}")
-        return f"Sorry, I couldn't update that task. Error: {str(e)}"
+        logger.error(f"Error getting tasks for update: {str(e)}")
+        return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
 # ============================================================================
@@ -727,6 +755,7 @@ class AgentService:
             uncomplete_task_tool = function_tool(uncomplete_task_by_search_impl)
             delete_task_tool = function_tool(delete_task_impl)
             delete_by_search_tool = function_tool(delete_tasks_by_search_impl)
+            get_all_tasks_tool = function_tool(get_all_tasks_impl)
             search_tasks_tool = function_tool(search_tasks_impl)
             list_tasks_tool = function_tool(list_tasks_impl)
             get_task_tool = function_tool(get_task_impl)
@@ -734,6 +763,7 @@ class AgentService:
 
             self._tools = [
                 create_task_tool,
+                get_all_tasks_tool,
                 update_task_tool,
                 update_by_search_tool,
                 toggle_task_tool,
@@ -752,24 +782,23 @@ class AgentService:
                 name="TaskManager",
                 instructions=(
                     "You are a friendly task management assistant. Help users manage tasks efficiently.\n\n"
+                    "TASK COMPLETION WORKFLOW:\n"
+                    "1. When user says they completed/finished/done something, call get_all_tasks FIRST\n"
+                    "2. Look at the list and find the task that best matches what the user described\n"
+                    "3. Call toggle_task with the exact task ID to mark it complete\n"
+                    "4. Confirm to the user what you did\n\n"
                     "TASK CREATION:\n"
-                    "- When users mention things to do, create a task with a SHORT, clear title.\n"
+                    "- Create tasks with SHORT, clear titles when users mention things to do\n"
                     "- Examples: 'eat potato' not 'can you add a task for eating potato'\n"
-                    "- Set priority to HIGH if urgent, MEDIUM otherwise.\n\n"
-                    "TASK COMPLETION:\n"
-                    "- Use complete_task_by_search when user says 'complete', 'finish', 'done' with a description\n"
-                    "- Use uncomplete_task_by_search when user says 'uncomplete', 'not done', 'reopen' with a description\n"
-                    "- Use toggle_task only when user gives a specific task ID number.\n\n"
+                    "- Set priority to HIGH if urgent, MEDIUM otherwise\n\n"
                     "TASK UPDATES:\n"
-                    "- Use update_task_by_search when user describes a task by name/title to update\n"
-                    "- Use update_task only when user gives a specific task ID number.\n\n"
+                    "- Call get_all_tasks first, then use update_task with the specific ID\n\n"
                     "TASK DELETION:\n"
                     "- Use delete_tasks_by_search for descriptions like 'delete potato tasks'\n"
-                    "- Use delete_task only when user gives an ID number.\n\n"
-                    "CONVERSATION:\n"
-                    "- You CAN see conversation history - it's provided as context.\n"
-                    "- Use show_conversation_summary tool when asked about conversation.\n\n"
-                    "IMPORTANT: After completing any action, STOP and respond to the user. Do NOT call multiple tools unless explicitly asked."
+                    "- Use delete_task only when user gives an ID number\n\n"
+                    "CRITICAL: Always get the task list FIRST before trying to complete/update/delete by description. "
+                    "YOU must decide which task matches - don't ask the user to pick from a list if there's an obvious match.\n\n"
+                    "After completing any action, STOP and respond to the user."
                 ),
                 tools=self._tools
             )
