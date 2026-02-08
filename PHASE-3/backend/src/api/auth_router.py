@@ -19,15 +19,20 @@ router = APIRouter(prefix="/api/v1", tags=["auth"])
 @router.get("/auth/debug")
 async def auth_debug(request: Request):
     """
-    Debug endpoint to check JWT configuration.
-    Returns the current Clerk JWT configuration values (without secrets).
+    Debug endpoint to check JWT and Agent configuration.
     """
+    # Import agent service to check its status
+    from ..services.agent_service import agent_service
+
     return {
         "clerk_issuer": os.getenv("CLERK_ISSUER", "NOT SET"),
         "clerk_jwks_url": os.getenv("CLERK_JWKS_URL", "NOT SET"),
         "clerk_audience": os.getenv("CLERK_JWT_AUDIENCE", "NOT SET (optional)"),
         "auth_header_present": request.headers.get("Authorization") is not None,
-        "auth_header_format": "Bearer <token>" if request.headers.get("Authorization", "").startswith("Bearer ") else "Invalid format"
+        "auth_header_format": "Bearer <token>" if request.headers.get("Authorization", "").startswith("Bearer ") else "Invalid format",
+        "agent_service_available": agent_service.is_available(),
+        "gemini_api_key_set": bool(os.getenv("GEMINI_API_KEY")),
+        "gemini_model": os.getenv("GEMINI_MODEL", "NOT SET")
     }
 
 

@@ -47,10 +47,17 @@ async def lifespan(app: FastAPI):
     try:
         from .services.agent_service import agent_service
         agent_service.initialize()
-        app.state.agent_service = agent_service
-        print("OpenAI Agents SDK initialized")
+
+        if agent_service.is_available():
+            app.state.agent_service = agent_service
+            print("✓ OpenAI Agents SDK initialized successfully")
+        else:
+            print("⚠ OpenAI Agents SDK not available - falling back to rule-based processing")
+            print("  To enable: Set GEMINI_API_KEY environment variable")
+            app.state.agent_service = None
     except Exception as e:
-        print(f"Warning: Could not initialize OpenAI Agents SDK: {e}")
+        print(f"⚠ Warning: Could not initialize OpenAI Agents SDK: {e}")
+        print("  Falling back to rule-based processing")
         app.state.agent_service = None
 
     yield
