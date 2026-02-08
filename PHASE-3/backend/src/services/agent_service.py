@@ -4,7 +4,7 @@ OpenAI Agents SDK Integration Service
 This service integrates the OpenAI Agents SDK for processing user messages
 and managing task operations through natural language.
 
-Uses Gemini API (free tier) via OpenAI-compatible endpoint.
+Uses Z.ai API via OpenAI-compatible endpoint.
 
 Context is passed via global context to tools for database access.
 """
@@ -231,6 +231,59 @@ def delete_task_impl(task_id: int) -> str:
         return f"Sorry, I couldn't delete that task. Error: {str(e)}"
 
 
+def delete_tasks_by_search_impl(search_term: str) -> str:
+    """
+    Delete tasks that match a search term in their title or description.
+
+    Args:
+        search_term: The search term to match against task titles
+
+    Returns:
+        A message describing which tasks were deleted
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't delete tasks due to a server error."
+
+    try:
+        task_service = _get_task_service()
+        from ..models.task import Task
+
+        # Search for tasks matching the term
+        tasks = task_service.get_tasks(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            search=search_term,
+            limit=50
+        )
+
+        if not tasks:
+            return f"No tasks found matching '{search_term}'. Nothing was deleted."
+
+        deleted_count = 0
+        deleted_titles = []
+        for task in tasks:
+            success = task_service.delete_task(
+                task.id, _tool_context.user_id, _tool_context.db_session
+            )
+            if success:
+                deleted_count += 1
+                deleted_titles.append(f"'{task.title}'")
+
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} tasks matching '{search_term}' for user {_tool_context.user_id}")
+            if deleted_count == 1:
+                return f"✓ Deleted {deleted_titles[0]}!"
+            else:
+                return f"✓ Deleted {deleted_count} tasks: {', '.join(deleted_titles)}"
+        else:
+            return f"Found tasks but couldn't delete them. Please try again."
+
+    except Exception as e:
+        logger.error(f"Error deleting tasks by search: {str(e)}")
+        return f"Sorry, I couldn't delete those tasks. Error: {str(e)}"
+
+
 def search_tasks_impl(search: str = "", completed: bool = None, priority: str = "", limit: int = 10) -> str:
     """
     Search for tasks based on criteria.
@@ -358,58 +411,53 @@ def get_task_impl(task_id: int) -> str:
         return f"Sorry, I couldn't retrieve the task. Error: {str(e)}"
 
 
-def delete_tasks_by_search_impl(search_term: str) -> str:
+def show_conversation_summary_impl() -> str:
     """
-    Delete tasks that match a search term in their title or description.
-
-    Args:
-        search_term: The search term to match against task titles
+    Show a summary of what has happened in our conversation so far.
 
     Returns:
-        A message describing which tasks were deleted
+        A summary of recent conversation activity
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't delete tasks due to a server error."
+        return "I'm sorry, I couldn't retrieve conversation history."
 
     try:
-        task_service = _get_task_service()
-        from ..models.task import Task
+        from ..services.chat_service import chat_service
 
-        # Search for tasks matching the term
-        tasks = task_service.get_tasks(
+        # Get recent messages from all sessions for this user
+        messages = chat_service.get_chat_history(
             user_id=_tool_context.user_id,
+            session_id=None,
             db_session=_tool_context.db_session,
-            search=search_term,
-            limit=50
+            limit=20
         )
 
-        if not tasks:
-            return f"No tasks found matching '{search_term}'. Nothing was deleted."
+        if not messages:
+            return "This is the beginning of our conversation! How can I help you with your tasks today?"
 
-        deleted_count = 0
-        deleted_titles = []
-        for task in tasks:
-            success = task_service.delete_task(
-                task.id, _tool_context.user_id, _tool_context.db_session
-            )
-            if success:
-                deleted_count += 1
-                deleted_titles.append(f"'{task.title}'")
+        # Count message types
+        user_msgs = [m for m in messages if m.sender_type == 'USER']
+        ai_msgs = [m for m in messages if m.sender_type == 'AI']
 
-        if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} tasks matching '{search_term}' for user {_tool_context.user_id}")
-            if deleted_count == 1:
-                return f"✓ Deleted {deleted_titles[0]}!"
-            else:
-                return f"✓ Deleted {deleted_count} tasks: {', '.join(deleted_titles)}"
-        else:
-            return f"Found tasks but couldn't delete them. Please try again."
+        result_lines = [
+            f"Here's what we've discussed ({len(messages)} messages):",
+            f"- {len(user_msgs)} messages from you",
+            f"- {len(ai_msgs)} responses from me",
+            "",
+            "Recent messages:"
+        ]
+
+        for msg in messages[-10:]:
+            sender = "You" if msg.sender_type == 'USER' else "Me"
+            content_preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
+            result_lines.append(f"- {sender}: {content_preview}")
+
+        return "\n".join(result_lines)
 
     except Exception as e:
-        logger.error(f"Error deleting tasks by search: {str(e)}")
-        return f"Sorry, I couldn't delete those tasks. Error: {str(e)}"
-
+        logger.error(f"Error getting conversation summary: {str(e)}")
+        return "Sorry, I couldn't retrieve the conversation summary."
 
 
 # ============================================================================
@@ -430,32 +478,35 @@ class AgentService:
         self._run_config = None
         self._tools = []
 
-        # Gemini API configuration
-        self._gemini_api_key = os.getenv("GEMINI_API_KEY")
-        self._model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+        # Z.ai API configuration (also supports GEMINI_API_KEY as fallback)
+        self._gemini_api_key = os.getenv("Z_AI_API_KEY") or os.getenv("GEMINI_API_KEY")
+        self._model_name = os.getenv("Z_AI_MODEL", "gpt-4o")
 
     def initialize(self):
-        """Initialize the OpenAI Agents SDK with Gemini API."""
+        """Initialize the OpenAI Agents SDK with Z.ai API."""
         if self._initialized:
             return
 
         try:
-            from agents import Agent, Runner, RunConfig, OpenAIChatCompletionsModel
-            from agents import function_tool, AsyncOpenAI
+            from agents import Agent, Runner, RunConfig, OpenAIChatCompletionsModel, function_tool
+            from openai import AsyncOpenAI
 
-            if not self._gemini_api_key:
-                logger.warning("GEMINI_API_KEY not found, OpenAI Agents SDK will not be available")
+            # Use Z.AI_API_KEY for Z.ai (fallback to GEMINI_API_KEY for backward compatibility)
+            api_key = os.getenv("Z_AI_API_KEY") or self._gemini_api_key
+
+            if not api_key:
+                logger.warning("Z_AI_API_KEY or GEMINI_API_KEY not found, OpenAI Agents SDK will not be available")
                 return
 
-            # Create external OpenAI client for Gemini
+            # Create external OpenAI client for Z.ai
             external_client = AsyncOpenAI(
-                api_key=self._gemini_api_key,
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+                api_key=api_key,
+                base_url="https://api.z.ai/api/coding/paas/v4"
             )
 
-            # Create the model wrapper
+            # Create the model wrapper (use gpt-4o or compatible model)
             model = OpenAIChatCompletionsModel(
-                model=self._model_name,
+                model=os.getenv("Z_AI_MODEL", "gpt-4o"),
                 openai_client=external_client
             )
 
@@ -475,6 +526,7 @@ class AgentService:
             search_tasks_tool = function_tool(search_tasks_impl)
             list_tasks_tool = function_tool(list_tasks_impl)
             get_task_tool = function_tool(get_task_impl)
+            show_conversation_tool = function_tool(show_conversation_summary_impl)
 
             self._tools = [
                 create_task_tool,
@@ -485,6 +537,7 @@ class AgentService:
                 search_tasks_tool,
                 list_tasks_tool,
                 get_task_tool,
+                show_conversation_tool,
             ]
 
             # Create the agent with tools
@@ -508,6 +561,10 @@ class AgentService:
                     "  Examples: 'delete potato tasks', 'remove all tasks about groceries', 'delete the homework task'\n"
                     "- Only use the delete_task tool (with ID) if the user specifically provides a task ID number.\n"
                     "- Always confirm what was deleted.\n\n"
+                    "CONVERSATION RULES:\n"
+                    "- You CAN see our conversation history - it's included as context with each message.\n"
+                    "- When users ask 'what happened', 'what did we do', or 'show me the conversation', use the show_conversation_summary tool.\n"
+                    "- Be aware of previous messages when responding.\n\n"
                     "GENERAL BEHAVIOR:\n"
                     "- Be conversational and friendly. Use natural language like 'Sure!', 'I've got that', 'Done!', etc.\n"
                     "- After creating a task, confirm what you did in a friendly way.\n"
@@ -520,7 +577,7 @@ class AgentService:
 
             self._Runner = Runner
             self._initialized = True
-            logger.info(f"OpenAI Agents SDK initialized successfully with Gemini model: {self._model_name}")
+            logger.info("OpenAI Agents SDK initialized successfully with Z.ai API")
 
         except ImportError as e:
             logger.warning(f"OpenAI Agents SDK not available: {e}")
@@ -567,21 +624,29 @@ class AgentService:
             user_name = None
             if user_info:
                 name = user_info.get("name") or user_info.get("first_name")
-                if name and name.lower() != "there":
+                if name and name.lower() not in ("there", "friend"):
                     user_name = name
 
             # Build the input with user context and conversation history
             input_text = content
+
+            # Prepend context if available
+            context_parts = []
+            if user_name:
+                context_parts.append(f"User's name: {user_name}")
+
             if conversation_history and len(conversation_history) > 0:
-                # Format conversation history as context
                 history_parts = []
                 for msg in conversation_history[-5:]:
                     sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
                     history_parts.append(f"{sender}: {msg.get('content', '')}")
-                history = "\n".join(history_parts)
-                input_text = f"Our conversation so far:\n{history}\n\nUser: {content}"
-            elif user_name:
-                input_text = f"My name is {user_name}. {content}"
+
+                if history_parts:
+                    context_parts.append("Recent conversation:")
+                    context_parts.extend(history_parts)
+
+            if context_parts:
+                input_text = "\n".join(context_parts) + f"\n\nCurrent message: {content}"
 
             # Run the agent
             result = await self._Runner.run(
@@ -599,7 +664,7 @@ class AgentService:
                 "success": True,
                 "content": response_content,
                 "operation_performed": operation_performed,
-                "model_used": f"OpenAI Agents SDK (Gemini: {self._model_name})"
+                "model_used": "OpenAI Agents SDK (Z.ai)"
             }
 
         except Exception as e:
@@ -647,21 +712,29 @@ class AgentService:
             user_name = None
             if user_info:
                 name = user_info.get("name") or user_info.get("first_name")
-                if name and name.lower() != "there":
+                if name and name.lower() not in ("there", "friend"):
                     user_name = name
 
             # Build the input with user context and conversation history
             input_text = content
+
+            # Prepend context if available
+            context_parts = []
+            if user_name:
+                context_parts.append(f"User's name: {user_name}")
+
             if conversation_history and len(conversation_history) > 0:
-                # Format conversation history as context
                 history_parts = []
                 for msg in conversation_history[-5:]:
                     sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
                     history_parts.append(f"{sender}: {msg.get('content', '')}")
-                history = "\n".join(history_parts)
-                input_text = f"Our conversation so far:\n{history}\n\nUser: {content}"
-            elif user_name:
-                input_text = f"My name is {user_name}. {content}"
+
+                if history_parts:
+                    context_parts.append("Recent conversation:")
+                    context_parts.extend(history_parts)
+
+            if context_parts:
+                input_text = "\n".join(context_parts) + f"\n\nCurrent message: {content}"
 
             result = await self._Runner.run(
                 self._agent,
@@ -687,7 +760,7 @@ class AgentService:
                 "type": "final",
                 "content": final_output,
                 "operation_performed": operation_performed,
-                "model_used": f"OpenAI Agents SDK (Gemini: {self._model_name})"
+                "model_used": "OpenAI Agents SDK (Z.ai)"
             }
 
             logger.info(f"Agent processed message (streamed) for user {user_id}")
