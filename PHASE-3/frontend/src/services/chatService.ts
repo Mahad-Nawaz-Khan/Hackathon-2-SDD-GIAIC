@@ -32,7 +32,7 @@ export interface ChatHistoryResponse {
   session_id: string;
 }
 
-type TokenGetter = () => Promise<string>;
+type TokenGetter = () => Promise<string | null>;
 
 class ChatService {
   private baseUrl: string;
