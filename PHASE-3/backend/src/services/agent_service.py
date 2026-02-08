@@ -540,12 +540,11 @@ class AgentService:
                 openai_client=external_client
             )
 
-            # Create run config with increased max turns
+            # Create run config
             self._run_config = RunConfig(
                 model=model,
                 model_provider=external_client,
-                tracing_disabled=True,
-                max_turns=50  # Increase from default 10 to 50
+                tracing_disabled=True
             )
 
             # Decorate the implementation functions as tools
