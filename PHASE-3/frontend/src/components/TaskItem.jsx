@@ -24,9 +24,10 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
   const handleToggleComplete = async () => {
     setError(null);
 
-    const previousTask = task;
+    const previousCompleted = task.completed;
     const nextCompleted = !task.completed;
 
+    // Optimistic update
     setOptimisticCompleted(nextCompleted);
     onUpdate({
       ...task,
@@ -52,17 +53,13 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
       }
 
       const updatedTask = await response.json();
-      if (updatedTask?.id && updatedTask.id !== task.id) {
-        setOptimisticCompleted(previousTask.completed);
-        onUpdate(previousTask);
-        onUpdate(updatedTask);
-      } else {
-        setOptimisticCompleted(Boolean(updatedTask?.completed));
-        onUpdate(updatedTask);
-      }
+      // Update with the server response (authoritative state)
+      setOptimisticCompleted(Boolean(updatedTask?.completed ?? previousCompleted));
+      onUpdate(updatedTask);
     } catch (err) {
-      setOptimisticCompleted(previousTask.completed);
-      onUpdate(previousTask);
+      // Revert on error
+      setOptimisticCompleted(previousCompleted);
+      onUpdate({ ...task, completed: previousCompleted });
       setError(err.message);
     } finally {
       setLoading(false);

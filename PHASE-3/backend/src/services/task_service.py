@@ -311,9 +311,17 @@ class TaskService:
         db_session: Session
     ) -> Optional[Task]:
         """
-        Toggle the completion status of a task
-        If the task has recurrence rules and is being marked as complete,
-        create a new recurring instance of the task
+        Toggle the completion status of a task.
+
+        Returns:
+            The toggled task. If the task has recurrence and is being marked complete,
+            also creates a new recurring instance (which will be added to the database
+            but not returned - the client should refresh to see it).
+
+        Note: When a recurring task is completed, we:
+        1. Mark the original task as completed
+        2. Create a new uncompleted instance for the next period
+        3. Return the original (now completed) task
         """
         try:
             # Validate parameters
@@ -326,22 +334,22 @@ class TaskService:
             if not task:
                 return None
 
-            # If marking as complete and task has recurrence
-            if not task.completed and task.recurrence_rule:
+            # Toggle the completed status
+            task.completed = not task.completed
+            task.updated_at = datetime.utcnow()
+
+            db_session.add(task)
+            db_session.commit()
+            db_session.refresh(task)
+
+            # If marking as complete and task has recurrence, create the next instance
+            if task.completed and task.recurrence_rule:
                 new_task = self._handle_recurrence(task, db_session)
                 logging.info(f"Task {task_id} completed with recurrence. Created new instance: {new_task.id}")
-                return new_task
             else:
-                # Standard toggle
-                task.completed = not task.completed
-                task.updated_at = datetime.utcnow()
-
-                db_session.add(task)
-                db_session.commit()
-                db_session.refresh(task)
-
                 logging.info(f"Task completion toggled for task ID: {task.id} for user: {user_id}")
-                return task
+
+            return task
         except ValueError as ve:
             logging.error(f"Validation error toggling task completion {task_id} for user {user_id}: {str(ve)}")
             raise ve
