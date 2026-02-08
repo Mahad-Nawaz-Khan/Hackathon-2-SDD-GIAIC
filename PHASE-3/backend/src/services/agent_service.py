@@ -502,34 +502,42 @@ class AgentService:
             # Set the tool context for this request
             _set_tool_context(db_session, user_id)
 
-            # Get user name for personalization
-            user_name = "friend"
+            # Get user name for personalization (only if we have a real name)
+            user_name = None
             if user_info:
                 name = user_info.get("name") or user_info.get("first_name")
-                if name:
+                if name and name.lower() != "there":
                     user_name = name
 
-            # Build input with conversation history and user context
-            input_text = content
-            context_prefix = f"The user's name is {user_name}. "
+            # Build input with conversation history for context
+            # Use the messages directly as input history for the Runner
+            messages_for_context = []
 
+            # Add conversation history
             if conversation_history and len(conversation_history) > 0:
                 recent_messages = conversation_history[-5:]
-                context_parts = []
                 for msg in recent_messages:
-                    sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
-                    context_parts.append(f"{sender}: {msg.get('content', '')}")
+                    role = "user" if msg.get("sender_type") == "USER" else "assistant"
+                    messages_for_context.append({
+                        "role": role,
+                        "content": msg.get('content', '')
+                    })
 
-                if context_parts:
-                    context_str = "\n".join(context_parts)
-                    input_text = f"{context_prefix}Here is our recent conversation:\n{context_str}\n\nNow, {user_name} says: {content}"
-            else:
-                input_text = f"{context_prefix}{user_name} says: {content}"
+            # Add the current message
+            current_msg = content
+            if user_name:
+                current_msg = f"(Your name is {user_name}) {content}"
+
+            messages_for_context.append({
+                "role": "user",
+                "content": current_msg
+            })
 
             # Run the agent
             result = await self._Runner.run(
                 self._agent,
-                input=input_text,
+                input=content,
+                messages=messages_for_context[:-1],  # Pass history as previous messages
                 run_config=self._run_config
             )
 
@@ -586,33 +594,41 @@ class AgentService:
         try:
             _set_tool_context(db_session, user_id)
 
-            # Get user name for personalization
-            user_name = "friend"
+            # Get user name for personalization (only if we have a real name)
+            user_name = None
             if user_info:
                 name = user_info.get("name") or user_info.get("first_name")
-                if name:
+                if name and name.lower() != "there":
                     user_name = name
 
-            # Build input with conversation history and user context
-            input_text = content
-            context_prefix = f"The user's name is {user_name}. "
+            # Build input with conversation history for context
+            # Use the messages directly as input history for the Runner
+            messages_for_context = []
 
+            # Add conversation history
             if conversation_history and len(conversation_history) > 0:
                 recent_messages = conversation_history[-5:]
-                context_parts = []
                 for msg in recent_messages:
-                    sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
-                    context_parts.append(f"{sender}: {msg.get('content', '')}")
+                    role = "user" if msg.get("sender_type") == "USER" else "assistant"
+                    messages_for_context.append({
+                        "role": role,
+                        "content": msg.get('content', '')
+                    })
 
-                if context_parts:
-                    context_str = "\n".join(context_parts)
-                    input_text = f"{context_prefix}Here is our recent conversation:\n{context_str}\n\nNow, {user_name} says: {content}"
-            else:
-                input_text = f"{context_prefix}{user_name} says: {content}"
+            # Add the current message
+            current_msg = content
+            if user_name:
+                current_msg = f"(Your name is {user_name}) {content}"
+
+            messages_for_context.append({
+                "role": "user",
+                "content": current_msg
+            })
 
             result = await self._Runner.run(
                 self._agent,
-                input=input_text,
+                input=content,
+                messages=messages_for_context[:-1],  # Pass history as previous messages
                 run_config=self._run_config
             )
 
