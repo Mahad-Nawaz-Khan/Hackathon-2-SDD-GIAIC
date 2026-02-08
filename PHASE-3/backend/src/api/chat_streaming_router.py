@@ -70,13 +70,25 @@ async def _stream_response_generator(
         # Check if agent service is available
         if not agent_service.is_available():
             # Fall back to rule-based processing
-            from ..chat_router import router as chat_router
             # Get the response from the non-streaming endpoint
             response_data = await _process_with_rule_based(content, user_id, session_id, db_session, user_message)
 
-            # Send as a single chunk
-            yield f"event: content\ndata: {json.dumps({'content': response_data['content']})}\n\n"
-            yield f"event: done\ndata: {json.dumps(response_data)}\n\n"
+            # Send in the format expected by frontend
+            yield f"data: {json.dumps({'type': 'content_delta', 'content': response_data['content']})}\n\n"
+            final_data = {
+                "type": "final",
+                "content": response_data['content'],
+                "operation_performed": response_data.get("operation_performed"),
+                "model_used": response_data.get("model_used"),
+                "message": {
+                    "id": str(response_data.get("message_id", "")),
+                    "content": response_data['content'],
+                    "sender_type": "AI",
+                    "created_at": user_message.created_at.isoformat()
+                }
+            }
+            yield f"data: {json.dumps(final_data)}\n\n"
+            yield f"data: [DONE]\n\n"
             return
 
         # Process with streaming agent
@@ -93,15 +105,15 @@ async def _stream_response_generator(
             if event["type"] == "content_delta":
                 # Stream text content
                 full_response_content += event["content"]
-                yield f"event: content\ndata: {json.dumps({'content': event['content']})}\n\n"
+                yield f"data: {json.dumps({'type': 'content_delta', 'content': event['content']})}\n\n"
 
             elif event["type"] == "tool_call":
                 # Notify that a tool is being called
-                yield f"event: tool_call\ndata: {json.dumps({'tool': event['tool_name'], 'args': event['tool_args']})}\n\n"
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool': event.get('tool_name'), 'args': event.get('tool_args')})}\n\n"
 
             elif event["type"] == "tool_output":
                 # Tool result received
-                yield f"event: tool_output\ndata: {json.dumps({'output': event['output']})}\n\n"
+                yield f"data: {json.dumps({'type': 'tool_output', 'output': event.get('output')})}\n\n"
 
             elif event["type"] == "final":
                 # Final response
@@ -119,24 +131,29 @@ async def _stream_response_generator(
 
                 # Send final event with complete response
                 final_data = {
+                    "type": "final",
                     "content": full_response_content,
                     "operation_performed": operation_performed,
                     "model_used": model_used,
-                    "message_id": ai_message.id
+                    "message": {
+                        "id": str(ai_message.id),
+                        "content": full_response_content,
+                        "sender_type": "AI",
+                        "created_at": ai_message.created_at.isoformat()
+                    }
                 }
-                yield f"event: done\ndata: {json.dumps(final_data)}\n\n"
+                yield f"data: {json.dumps(final_data)}\n\n"
+                yield f"data: [DONE]\n\n"
                 return
 
             elif event["type"] == "error":
                 # Error occurred
-                yield f"event: error\ndata: {json.dumps({'error': event['content']})}\n\n"
-                yield f"event: done\ndata: {json.dumps({'error': event['content']})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': event.get('content', 'Unknown error')})}\n\n"
                 return
 
     except Exception as e:
         logger.exception(f"Error in stream generator: {str(e)}")
-        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-        yield f"event: done\ndata: {json.dumps({'error': str(e)})}\n\n"
+        yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
 
 async def _process_with_rule_based(
