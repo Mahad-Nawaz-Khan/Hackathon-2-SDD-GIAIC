@@ -333,11 +333,6 @@ def _resolve_tags(tags_str: str) -> List[int]:
                 logger.warning(f"Could not auto-create tag '{tag_name}': {e}")
 
     return tag_ids
-                tag_ids.append(new_tag.id)
-            except:
-                pass  # Skip if creation fails
-
-    return tag_ids
 
 
 def get_current_date_impl() -> str:
