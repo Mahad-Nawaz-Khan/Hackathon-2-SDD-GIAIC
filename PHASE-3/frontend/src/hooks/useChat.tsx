@@ -23,30 +23,19 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Get Clerk token
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   const { autoLoadHistory = true, enableStreaming = true } = options;
 
   // Set up the token getter for chatService
   useEffect(() => {
-    if (getToken) {
-      chatService.setTokenGetter(getToken);
+    if (getToken && isLoaded) {
+      chatService.setTokenGetter(async () => {
+        const token = await getToken();
+        return token;
+      });
     }
-  }, [getToken]);
-
-  // Load chat history on mount
-  useEffect(() => {
-    if (autoLoadHistory) {
-      loadHistory();
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [autoLoadHistory]);
+  }, [getToken, isLoaded]);
 
   /**
    * Load chat history from the server
@@ -64,6 +53,20 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       setIsLoading(false);
     }
   }, []);
+
+  // Load chat history on mount (after Clerk is loaded)
+  useEffect(() => {
+    if (autoLoadHistory && isLoaded) {
+      loadHistory();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [autoLoadHistory, isLoaded, loadHistory]);
 
   /**
    * Send a message to the chatbot

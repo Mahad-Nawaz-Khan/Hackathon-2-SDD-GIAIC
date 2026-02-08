@@ -66,46 +66,57 @@ class ChatService {
    * Get the auth token from Clerk
    */
   private async getAuthToken(): Promise<string> {
+    console.log('[chatService] Getting auth token...');
+
     // First try: Use the token getter set by the React component
     if (this.tokenGetter) {
       try {
+        console.log('[chatService] Using token getter from Clerk hook...');
         const token = await this.tokenGetter();
+        console.log('[chatService] Token from getter:', token ? 'FOUND' : 'NULL');
         if (token) {
           return token;
         }
       } catch (error) {
-        console.error('Error getting Clerk token from getter:', error);
+        console.error('[chatService] Error getting Clerk token from getter:', error);
       }
+    } else {
+      console.log('[chatService] No token getter available!');
     }
 
     // Second try: Use the clerk-js loaded via script tag (if available)
     if (typeof window !== 'undefined' && (window as any).Clerk) {
       try {
+        console.log('[chatService] Trying clerk-js fallback...');
         const clerk = new (window as any).Clerk(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
         await clerk.load();
         if (clerk.session) {
           const token = await clerk.session.getToken();
           if (token) {
+            console.log('[chatService] Token from clerk-js: FOUND');
             return token;
           }
         }
       } catch (error) {
-        console.error('Error getting Clerk token from clerk-js:', error);
+        console.error('[chatService] Error getting Clerk token from clerk-js:', error);
       }
     }
 
     // Third try: Check for token in localStorage (backup)
     if (typeof window !== 'undefined') {
+      console.log('[chatService] Checking localStorage for token...');
       // Check various Clerk storage keys
       const keys = ['__clerk_client_jwt', '__session'];
       for (const key of keys) {
         const token = localStorage.getItem(key);
         if (token) {
+          console.log(`[chatService] Token from localStorage (${key}): FOUND`);
           return token;
         }
       }
     }
 
+    console.error('[chatService] No authentication token found!');
     throw new Error('No authentication token available. Please sign in.');
   }
 
