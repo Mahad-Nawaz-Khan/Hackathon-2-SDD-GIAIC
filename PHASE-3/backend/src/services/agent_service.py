@@ -12,11 +12,12 @@ Context is passed via global context to tools for database access.
 import logging
 import os
 import asyncio
+import re
 from typing import Dict, Any, Optional, List, AsyncIterator
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..models.chat_models import (
     IntentDetectionResult,
@@ -84,15 +85,24 @@ def _get_operation_performed() -> Optional[Dict[str, Any]]:
 # Function Tool Implementations
 # ============================================================================
 
-def create_task_impl(title: str, description: str = "", priority: str = "MEDIUM", due_date: str = "") -> str:
+def create_task_impl(
+    title: str,
+    description: str = "",
+    priority: str = "MEDIUM",
+    due_date: str = "",
+    recurrence: str = "",
+    tags: str = ""
+) -> str:
     """
-    Create a new task for the user.
+    Create a new task or update existing task with same title.
 
     Args:
         title: The task title (required)
         description: Optional task description
         priority: Priority level (HIGH, MEDIUM, LOW) - default is MEDIUM
-        due_date: Optional due date in YYYY-MM-DD format
+        due_date: Due date as relative text like 'tomorrow', 'next week', 'in 3 days' OR YYYY-MM-DD format
+        recurrence: Recurrence rule - daily, weekly, monthly, or 'every X days/weeks'
+        tags: Comma-separated tag names to attach (e.g., 'work, urgent')
 
     Returns:
         A message describing the result
@@ -102,35 +112,234 @@ def create_task_impl(title: str, description: str = "", priority: str = "MEDIUM"
         return "I'm sorry, I couldn't create the task due to a server error."
 
     try:
-        from ..schemas.task import TaskCreateRequest
+        from ..schemas.task import TaskCreateRequest, TaskUpdateRequest
+        from ..models.task import Task as TaskModel
         task_service = _get_task_service()
 
-        task_data = TaskCreateRequest(
-            title=title,
-            description=description if description else None,
-            priority=priority if priority else "MEDIUM",
-            due_date=None
-        )
+        # Check if task with same title already exists
+        existing_tasks = _tool_context.db_session.exec(
+            select(TaskModel).where(
+                (TaskModel.user_id == _tool_context.user_id) &
+                (TaskModel.title == title)
+            )
+        ).all()
 
+        # Parse due date - handle relative dates
+        parsed_due_date = None
         if due_date:
-            try:
-                task_data.due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
-            except ValueError:
-                logger.warning(f"Failed to parse due_date: {due_date}")
+            parsed_due_date = _parse_relative_date(due_date)
 
-        task = task_service.create_task(
-            task_data,
-            _tool_context.user_id,
-            _tool_context.db_session
-        )
+        # Parse recurrence
+        parsed_recurrence = None
+        if recurrence:
+            parsed_recurrence = _parse_recurrence(recurrence)
 
-        logger.info(f"Created task {task.id} for user {_tool_context.user_id}")
-        # Mark operation for frontend refresh
-        _mark_operation_performed("create_task", {"task_id": task.id})
-        return f"✓ Task '{task.title}' created successfully!"
+        # Find or resolve tag IDs
+        tag_ids = _resolve_tags(tags) if tags else []
+
+        if existing_tasks:
+            # Update existing task instead of creating duplicate
+            task = existing_tasks[0]
+            update_data = {}
+
+            if description and description != (task.description or ""):
+                update_data["description"] = description
+
+            if priority and priority != (task.priority or "MEDIUM"):
+                update_data["priority"] = priority
+
+            if parsed_due_date and parsed_due_date != (task.due_date):
+                update_data["due_date"] = parsed_due_date
+
+            if parsed_recurrence and parsed_recurrence != (task.recurrence_rule):
+                update_data["recurrence_rule"] = parsed_recurrence
+
+            if tag_ids:
+                update_data["tag_ids"] = tag_ids
+
+            if update_data:
+                task_update = TaskUpdateRequest(**update_data)
+                updated_task = task_service.update_task(
+                    task.id, task_update, _tool_context.user_id, _tool_context.db_session
+                )
+                logger.info(f"Updated existing task {task.id} instead of creating duplicate")
+                _mark_operation_performed("update_task", {"task_id": task.id})
+                return f"✓ Updated existing task '{task.title}' instead of creating duplicate!"
+            else:
+                return f"Task '{title}' already exists with the same details."
+        else:
+            # Create new task
+            task_data = TaskCreateRequest(
+                title=title,
+                description=description if description else None,
+                priority=priority if priority else "MEDIUM",
+                due_date=parsed_due_date,
+                recurrence_rule=parsed_recurrence,
+                tag_ids=tag_ids if tag_ids else None
+            )
+
+            task = task_service.create_task(
+                task_data,
+                _tool_context.user_id,
+                _tool_context.db_session
+            )
+
+            logger.info(f"Created task {task.id} for user {_tool_context.user_id}")
+            _mark_operation_performed("create_task", {"task_id": task.id})
+
+            result = f"✓ Task '{task.title}' created!"
+            if parsed_due_date:
+                result += f" Due: {parsed_due_date.strftime('%Y-%m-%d')}"
+            if parsed_recurrence:
+                result += f" Recurs: {parsed_recurrence}"
+            if tag_ids:
+                result += f" Tags added."
+            return result
+
     except Exception as e:
         logger.error(f"Error creating task: {str(e)}")
         return f"Sorry, I couldn't create that task. Error: {str(e)}"
+
+
+def _parse_relative_date(date_str: str) -> Optional[datetime]:
+    """Parse relative date strings like 'tomorrow', 'next week', 'in 3 days'."""
+    if not date_str:
+        return None
+
+    date_str = date_str.strip().lower()
+
+    # Try YYYY-MM-DD format first
+    try:
+        return datetime.fromisoformat(date_str)
+    except:
+        pass
+
+    from datetime import timedelta
+
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Relative date mappings
+    if date_str == "today":
+        return today
+    elif date_str == "tomorrow":
+        return today + timedelta(days=1)
+    elif date_str == "yesterday":
+        return today - timedelta(days=1)
+
+    # "in X days" or "X days from now"
+    import re
+    match = re.search(r'in (\d+) days?', date_str)
+    if match:
+        days = int(match.group(1))
+        return today + timedelta(days=days)
+
+    match = re.search(r'(\d+) days? from now', date_str)
+    if match:
+        days = int(match.group(1))
+        return today + timedelta(days=days)
+
+    # "next week"
+    if "next week" in date_str:
+        return today + timedelta(weeks=1)
+
+    # "next month"
+    if "next month" in date_str:
+        return today + timedelta(days=30)
+
+    # Day of week
+    weekdays = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
+    for day, target_weekday in weekdays.items():
+        if day in date_str:
+            current_weekday = today.weekday()
+            days_ahead = (target_weekday - current_weekday + 7) % 7
+            if days_ahead == 0:
+                days_ahead = 7  # Next week, not today
+            return today + timedelta(days=days_ahead)
+
+    return None
+
+
+def _parse_recurrence(recurrence_str: str) -> Optional[str]:
+    """Parse recurrence string to standard format."""
+    if not recurrence_str:
+        return None
+
+    recurrence_str = recurrence_str.strip().lower()
+
+    # Direct mappings
+    if recurrence_str == "daily":
+        return "DAILY"
+    elif recurrence_str == "weekly":
+        return "WEEKLY"
+    elif recurrence_str == "monthly":
+        return "MONTHLY"
+
+    # "every X days/weeks"
+    import re
+    match = re.search(r'every (\d+) days?', recurrence_str)
+    if match:
+        return f"every {match.group(1)} days"
+
+    match = re.search(r'every (\d+) weeks?', recurrence_str)
+    if match:
+        return f"every {match.group(1)} weeks"
+
+    # If already in correct format
+    if recurrence_str.upper() in ["DAILY", "WEEKLY", "MONTHLY"]:
+        return recurrence_str.upper()
+
+    return recurrence_str.upper()
+
+
+def _resolve_tags(tags_str: str) -> List[int]:
+    """Resolve tag names to tag IDs, creating new tags if needed."""
+    if not tags_str:
+        return []
+
+    from ..models.tag import Tag
+    tag_service = _get_task_service()
+
+    tag_names = [t.strip() for t in tags_str.split(",") if t.strip()]
+    tag_ids = []
+
+    for tag_name in tag_names:
+        # Try to find existing tag
+        existing = _tool_context.db_session.exec(
+            select(Tag).where(
+                (Tag.user_id == _tool_context.user_id) &
+                (Tag.name == tag_name)
+            )
+        ).first()
+
+        if existing:
+            tag_ids.append(existing.id)
+        else:
+            # Create new tag
+            try:
+                new_tag = tag_service.create_tag(
+                    {"name": tag_name, "color": "#94A3B8"},
+                    _tool_context.user_id,
+                    _tool_context.db_session
+                )
+                tag_ids.append(new_tag.id)
+            except:
+                pass  # Skip if creation fails
+
+    return tag_ids
+
+
+def get_current_date_impl() -> str:
+    """
+    Get the current date.
+
+    Returns:
+        Current date in YYYY-MM-DD format
+    """
+    try:
+        today = datetime.utcnow()
+        return f"Today is {today.strftime('%Y-%m-%d (%A)')}. "
+    except:
+        return "Could not get current date."
 
 
 def update_task_impl(task_id: int, title: str = "", description: str = "", priority: str = "", completed: bool = None) -> str:
@@ -756,6 +965,7 @@ class AgentService:
             delete_task_tool = function_tool(delete_task_impl)
             delete_by_search_tool = function_tool(delete_tasks_by_search_impl)
             get_all_tasks_tool = function_tool(get_all_tasks_impl)
+            get_current_date_tool = function_tool(get_current_date_impl)
             search_tasks_tool = function_tool(search_tasks_impl)
             list_tasks_tool = function_tool(list_tasks_impl)
             get_task_tool = function_tool(get_task_impl)
@@ -764,6 +974,7 @@ class AgentService:
             self._tools = [
                 create_task_tool,
                 get_all_tasks_tool,
+                get_current_date_tool,
                 update_task_tool,
                 update_by_search_tool,
                 toggle_task_tool,
@@ -782,15 +993,29 @@ class AgentService:
                 name="TaskManager",
                 instructions=(
                     "You are a friendly task management assistant. Help users manage tasks efficiently.\n\n"
-                    "TASK COMPLETION WORKFLOW:\n"
-                    "1. When user says they completed/finished/done something, call get_all_tasks FIRST\n"
-                    "2. Look at the list and find the task that best matches what the user described\n"
-                    "3. Call toggle_task with the exact task ID to mark it complete\n"
-                    "4. Confirm to the user what you did\n\n"
+                    "DATE HANDLING:\n"
+                    "- Use get_current_date to know today's date\n"
+                    "- For due dates, use relative terms like 'tomorrow', 'next week', 'in 3 days' or YYYY-MM-DD format\n"
+                    "- Days of week work too: 'on friday', 'by monday'\n\n"
                     "TASK CREATION:\n"
-                    "- Create tasks with SHORT, clear titles when users mention things to do\n"
-                    "- Examples: 'eat potato' not 'can you add a task for eating potato'\n"
-                    "- Set priority to HIGH if urgent, MEDIUM otherwise\n\n"
+                    "- Use create_task with these parameters:\n"
+                    "  * title: short, clear task name (required)\n"
+                    "  * description: optional details\n"
+                    "  * priority: HIGH, MEDIUM, or LOW (default MEDIUM)\n"
+                    "  * due_date: relative date or YYYY-MM-DD (optional)\n"
+                    "  * recurrence: 'daily', 'weekly', 'monthly', or 'every X days/weeks' (optional)\n"
+                    "  * tags: comma-separated tag names like 'work,urgent' (optional)\n"
+                    "- If user says 'daily' or 'every day' in relation to a task, set recurrence to 'daily'\n"
+                    "- If user mentions a tag like 'feed', set tags parameter to 'feed' (NOT the description!)\n\n"
+                    "TASK COMPLETION:\n"
+                    "1. Call get_all_tasks FIRST to see all tasks\n"
+                    "2. Find the matching task yourself by reading the list\n"
+                    "3. Call toggle_task with the exact task ID\n\n"
+                    "CRITICAL:\n"
+                    "- NEVER put recurrence, tags, or priority in the description field!\n"
+                    "- Use the proper parameters: recurrence, tags, priority\n"
+                    "- Tags go in 'tags' parameter as comma-separated names, not in description"
+                ),
                     "TASK UPDATES:\n"
                     "- Call get_all_tasks first, then use update_task with the specific ID\n\n"
                     "TASK DELETION:\n"
