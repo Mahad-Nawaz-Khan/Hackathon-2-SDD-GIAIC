@@ -490,6 +490,177 @@ def show_conversation_summary_impl() -> str:
         return "Sorry, I couldn't retrieve the conversation summary."
 
 
+def complete_task_by_search_impl(search_term: str) -> str:
+    """
+    Mark a task as completed by searching for it by title/description.
+
+    Args:
+        search_term: The search term to find the task
+
+    Returns:
+        A message describing the result
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't update the task due to a server error."
+
+    try:
+        task_service = _get_task_service()
+
+        # Search for tasks matching the term
+        tasks = task_service.get_tasks(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            search=search_term,
+            limit=10
+        )
+
+        if not tasks:
+            return f"No tasks found matching '{search_term}'."
+        if len(tasks) > 1:
+            return f"Found {len(tasks)} tasks matching '{search_term}'. Please be more specific."
+
+        # Get the first (only) matching task
+        task = tasks[0]
+        if task.completed:
+            return f"Task '{task.title}' is already completed."
+
+        # Toggle to completed
+        updated_task = task_service.toggle_task_completion(
+            task.id, _tool_context.user_id, _tool_context.db_session
+        )
+
+        if updated_task:
+            logger.info(f"Completed task {task.id} for user {_tool_context.user_id}")
+            _mark_operation_performed("toggle_task", {"task_id": task.id})
+            return f"✓ Marked '{task.title}' as completed!"
+        else:
+            return f"Sorry, I couldn't update that task."
+
+    except Exception as e:
+        logger.error(f"Error completing task by search: {str(e)}")
+        return f"Sorry, I couldn't complete that task. Error: {str(e)}"
+
+
+def uncomplete_task_by_search_impl(search_term: str) -> str:
+    """
+    Mark a task as not completed (uncomplete) by searching for it by title/description.
+
+    Args:
+        search_term: The search term to find the task
+
+    Returns:
+        A message describing the result
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't update the task due to a server error."
+
+    try:
+        task_service = _get_task_service()
+
+        # Search for tasks matching the term
+        tasks = task_service.get_tasks(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            search=search_term,
+            completed=True,  # Only search completed tasks
+            limit=10
+        )
+
+        if not tasks:
+            return f"No completed tasks found matching '{search_term}'."
+        if len(tasks) > 1:
+            return f"Found {len(tasks)} completed tasks matching '{search_term}'. Please be more specific."
+
+        # Get the first (only) matching task
+        task = tasks[0]
+        if not task.completed:
+            return f"Task '{task.title}' is already not completed."
+
+        # Toggle to not completed
+        updated_task = task_service.toggle_task_completion(
+            task.id, _tool_context.user_id, _tool_context.db_session
+        )
+
+        if updated_task:
+            logger.info(f"Uncompleted task {task.id} for user {_tool_context.user_id}")
+            _mark_operation_performed("toggle_task", {"task_id": task.id})
+            return f"✓ Marked '{task.title}' as not completed!"
+        else:
+            return f"Sorry, I couldn't update that task."
+
+    except Exception as e:
+        logger.error(f"Error uncompleting task by search: {str(e)}")
+        return f"Sorry, I couldn't update that task. Error: {str(e)}"
+
+
+def update_task_by_search_impl(search_term: str, title: str = "", description: str = "", priority: str = "") -> str:
+    """
+    Update a task by searching for it by title/description.
+
+    Args:
+        search_term: The search term to find the task
+        title: New task title (optional)
+        description: New task description (optional)
+        priority: New priority level - HIGH, MEDIUM, or LOW (optional)
+
+    Returns:
+        A message describing the result
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't update the task due to a server error."
+
+    try:
+        from ..schemas.task import TaskUpdateRequest
+        task_service = _get_task_service()
+
+        # Search for tasks matching the term
+        tasks = task_service.get_tasks(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            search=search_term,
+            limit=10
+        )
+
+        if not tasks:
+            return f"No tasks found matching '{search_term}'."
+        if len(tasks) > 1:
+            return f"Found {len(tasks)} tasks matching '{search_term}'. Please be more specific."
+
+        # Get the first (only) matching task
+        task = tasks[0]
+
+        # Build update data
+        update_data = {}
+        if title:
+            update_data["title"] = title
+        if description:
+            update_data["description"] = description
+        if priority:
+            update_data["priority"] = priority
+
+        if not update_data:
+            return "Please provide at least one field to update (title, description, or priority)."
+
+        task_update = TaskUpdateRequest(**update_data)
+        updated_task = task_service.update_task(
+            task.id, task_update, _tool_context.user_id, _tool_context.db_session
+        )
+
+        if updated_task:
+            logger.info(f"Updated task {task.id} for user {_tool_context.user_id}")
+            _mark_operation_performed("update_task", {"task_id": task.id})
+            return f"✓ Updated '{task.title}' successfully!"
+        else:
+            return f"Sorry, I couldn't update that task."
+
+    except Exception as e:
+        logger.error(f"Error updating task by search: {str(e)}")
+        return f"Sorry, I couldn't update that task. Error: {str(e)}"
+
+
 # ============================================================================
 # Agent Service Class
 # ============================================================================
@@ -550,7 +721,10 @@ class AgentService:
             # Decorate the implementation functions as tools
             create_task_tool = function_tool(create_task_impl)
             update_task_tool = function_tool(update_task_impl)
+            update_by_search_tool = function_tool(update_task_by_search_impl)
             toggle_task_tool = function_tool(toggle_task_completion_impl)
+            complete_task_tool = function_tool(complete_task_by_search_impl)
+            uncomplete_task_tool = function_tool(uncomplete_task_by_search_impl)
             delete_task_tool = function_tool(delete_task_impl)
             delete_by_search_tool = function_tool(delete_tasks_by_search_impl)
             search_tasks_tool = function_tool(search_tasks_impl)
@@ -561,7 +735,10 @@ class AgentService:
             self._tools = [
                 create_task_tool,
                 update_task_tool,
+                update_by_search_tool,
                 toggle_task_tool,
+                complete_task_tool,
+                uncomplete_task_tool,
                 delete_task_tool,
                 delete_by_search_tool,
                 search_tasks_tool,
@@ -579,6 +756,13 @@ class AgentService:
                     "- When users mention things to do, create a task with a SHORT, clear title.\n"
                     "- Examples: 'eat potato' not 'can you add a task for eating potato'\n"
                     "- Set priority to HIGH if urgent, MEDIUM otherwise.\n\n"
+                    "TASK COMPLETION:\n"
+                    "- Use complete_task_by_search when user says 'complete', 'finish', 'done' with a description\n"
+                    "- Use uncomplete_task_by_search when user says 'uncomplete', 'not done', 'reopen' with a description\n"
+                    "- Use toggle_task only when user gives a specific task ID number.\n\n"
+                    "TASK UPDATES:\n"
+                    "- Use update_task_by_search when user describes a task by name/title to update\n"
+                    "- Use update_task only when user gives a specific task ID number.\n\n"
                     "TASK DELETION:\n"
                     "- Use delete_tasks_by_search for descriptions like 'delete potato tasks'\n"
                     "- Use delete_task only when user gives an ID number.\n\n"
@@ -825,10 +1009,8 @@ class AgentService:
                 context = result.context
                 if hasattr(context, 'tool_calls') and context.tool_calls:
                     return {"type": "tool_call", "count": len(context.tool_calls)}
-
-            logger.debug(f"Could not extract operations from result type: {type(result)}, attributes: {dir(result)}")
         except Exception as e:
-            logger.debug(f"Could not extract operations: {e}")
+            pass
         return None
 
     def classify_intent(self, message: str) -> IntentDetectionResult:

@@ -23,7 +23,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Get Clerk token and user info
-  const { isLoaded, isSignedIn, getToken, userId } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const userName = user?.firstName || user?.fullName || 'friend';
 
@@ -31,10 +31,8 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
 
   // Set up the token getter for chatService whenever auth state changes
   useEffect(() => {
-    console.log('[useChat] Auth state:', { isLoaded, isSignedIn, hasGetToken: !!getToken });
     if (isLoaded && getToken) {
       chatService.setTokenGetter(getToken);
-      console.log('[useChat] Token getter set successfully');
     }
   }, [isLoaded, getToken]);
 
@@ -44,7 +42,6 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const loadHistory = useCallback(async () => {
     // Only load if user is signed in
     if (!isSignedIn) {
-      console.log('[useChat] User not signed in, skipping history load');
       return;
     }
 
@@ -66,17 +63,15 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
         // Save welcome message to database so it's included in conversation history
         try {
           await chatService.saveWelcomeMessage(welcomeText);
-          console.log('[useChat] Welcome message saved to database');
         } catch (err) {
-          console.warn('[useChat] Could not save welcome message:', err);
+          // Silently fail - welcome message is for display only
         }
       } else {
         setMessages(history.messages);
       }
       setSessionId(history.session_id);
     } catch (error) {
-      console.error('Failed to load chat history:', error);
-      // Don't throw error - just log it and continue with empty state
+      // Don't throw error - just continue with empty state
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +97,6 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const sendMessage = useCallback(async (text: string) => {
     // Check if user is authenticated
     if (!isLoaded || !isSignedIn) {
-      console.error('[useChat] Cannot send message: User not authenticated', { isLoaded, isSignedIn });
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         text: 'Please sign in to use the chat feature.',
@@ -158,10 +152,10 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
               );
             },
             onToolCall: (tool: string, args: any) => {
-              console.log('Tool called:', tool, args);
+              // Tool call - no action needed
             },
             onToolOutput: (output: any) => {
-              console.log('Tool output:', output);
+              // Tool output - no action needed
             },
             onDone: (response) => {
               setMessages(prev =>
@@ -193,7 +187,6 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
               abortControllerRef.current = null;
             },
             onError: (error: string) => {
-              console.error('Stream error:', error);
               setMessages(prev =>
                 prev.map(msg =>
                   msg.id === aiMessageId
@@ -232,7 +225,6 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
         // Trigger a task list refresh after a short delay if an operation was performed
         if (response.operation_performed) {
           setTimeout(() => {
-            // Dispatch a custom event to notify other components
             window.dispatchEvent(new CustomEvent('tasksUpdated'));
           }, 500);
         }
@@ -241,8 +233,6 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       }
 
     } catch (error) {
-      console.error('Failed to send message:', error);
-
       // Add error message
       setMessages(prev =>
         prev.map(msg =>
@@ -269,7 +259,6 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       setOperationPerformed(null);
       setSessionId(chatService.getSessionId());
     } catch (error) {
-      console.error('Failed to clear chat history:', error);
       // Still clear local state even if API call fails
       setMessages([]);
     }
@@ -295,7 +284,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
 
       setMessages([welcomeMessage]);
     } catch (error) {
-      console.error('Failed to start new conversation:', error);
+      // Silently fail
     }
   }, [userName]);
 

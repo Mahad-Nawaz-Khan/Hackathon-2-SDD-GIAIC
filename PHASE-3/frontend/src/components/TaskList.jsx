@@ -99,8 +99,7 @@ export const TaskList = ({ createdTask }) => {
   // Listen for tasks updated event from chat bot
   useEffect(() => {
     const handleTasksUpdated = () => {
-      console.log('[TaskList] Tasks updated event received, refreshing...');
-      fetchTasksFromAPI({ replace: true }); // Pass replace flag to avoid merging
+      fetchTasksFromAPI({ replace: true });
     };
 
     window.addEventListener('tasksUpdated', handleTasksUpdated);
