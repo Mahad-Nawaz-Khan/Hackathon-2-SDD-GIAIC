@@ -342,6 +342,83 @@ def get_current_date_impl() -> str:
         return "Could not get current date."
 
 
+def create_tag_impl(name: str, color: str = "#94A3B8") -> str:
+    """
+    Create a new tag.
+
+    Args:
+        name: The tag name (required)
+        color: Optional color hex code (default: #94A3B8)
+
+    Returns:
+        A message describing the result
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't create the tag due to a server error."
+
+    try:
+        tag_service = _get_task_service()
+
+        # Check if tag already exists
+        from ..models.tag import Tag
+        existing = _tool_context.db_session.exec(
+            select(Tag).where(
+                (Tag.user_id == _tool_context.user_id) &
+                (Tag.name == name)
+            )
+        ).first()
+
+        if existing:
+            return f"Tag '{name}' already exists."
+
+        new_tag = tag_service.create_tag(
+            {"name": name, "color": color},
+            _tool_context.user_id,
+            _tool_context.db_session
+        )
+
+        return f"✓ Created tag '{name}' (ID: {new_tag.id})"
+
+    except Exception as e:
+        logger.error(f"Error creating tag: {str(e)}")
+        return f"Sorry, I couldn't create that tag. Error: {str(e)}"
+
+
+def list_tags_impl() -> str:
+    """
+    List all tags for the user.
+
+    Returns:
+        A list of all tags
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't retrieve tags due to a server error."
+
+    try:
+        tag_service = _get_task_service()
+
+        tags = tag_service.get_tags(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            limit=100
+        )
+
+        if not tags:
+            return "You have no tags yet. Create one with create_tag."
+
+        result_lines = [f"Your tags ({len(tags)}):"]
+        for tag in tags:
+            result_lines.append(f"- {tag.name} (ID: {tag.id})")
+
+        return "\n".join(result_lines)
+
+    except Exception as e:
+        logger.error(f"Error listing tags: {str(e)}")
+        return f"Sorry, I couldn't retrieve tags. Error: {str(e)}"
+
+
 def update_task_impl(task_id: int, title: str = "", description: str = "", priority: str = "", completed: bool = None) -> str:
     """
     Update an existing task.
@@ -957,6 +1034,7 @@ class AgentService:
 
             # Decorate the implementation functions as tools
             create_task_tool = function_tool(create_task_impl)
+            create_tag_tool = function_tool(create_tag_impl)
             update_task_tool = function_tool(update_task_impl)
             update_by_search_tool = function_tool(update_task_by_search_impl)
             toggle_task_tool = function_tool(toggle_task_completion_impl)
@@ -966,6 +1044,7 @@ class AgentService:
             delete_by_search_tool = function_tool(delete_tasks_by_search_impl)
             get_all_tasks_tool = function_tool(get_all_tasks_impl)
             get_current_date_tool = function_tool(get_current_date_impl)
+            list_tags_tool = function_tool(list_tags_impl)
             search_tasks_tool = function_tool(search_tasks_impl)
             list_tasks_tool = function_tool(list_tasks_impl)
             get_task_tool = function_tool(get_task_impl)
@@ -973,8 +1052,10 @@ class AgentService:
 
             self._tools = [
                 create_task_tool,
+                create_tag_tool,
                 get_all_tasks_tool,
                 get_current_date_tool,
+                list_tags_tool,
                 update_task_tool,
                 update_by_search_tool,
                 toggle_task_tool,
@@ -997,31 +1078,26 @@ class AgentService:
                     "- Use get_current_date to know today's date\n"
                     "- For due dates, use relative terms like 'tomorrow', 'next week', 'in 3 days' or YYYY-MM-DD format\n"
                     "- Days of week work too: 'on friday', 'by monday'\n\n"
+                    "TAGS:\n"
+                    "- Use list_tags to see all available tags\n"
+                    "- Use create_tag to create a new tag before using it in a task\n"
+                    "- Tags are passed as comma-separated names: tags='work,urgent'\n"
+                    "- NEVER put tag names in the title or description field!\n\n"
                     "TASK CREATION:\n"
-                    "- Use create_task with these parameters:\n"
-                    "  * title: short, clear task name (required)\n"
-                    "  * description: optional details\n"
-                    "  * priority: HIGH, MEDIUM, or LOW (default MEDIUM)\n"
-                    "  * due_date: relative date or YYYY-MM-DD (optional)\n"
-                    "  * recurrence: 'daily', 'weekly', 'monthly', or 'every X days/weeks' (optional)\n"
-                    "  * tags: comma-separated tag names like 'work,urgent' (optional)\n"
-                    "- If user says 'daily' or 'every day' in relation to a task, set recurrence to 'daily'\n"
-                    "- If user mentions a tag like 'feed', set tags parameter to 'feed' (NOT the description!)\n\n"
+                    "- Use create_task with: title (required), description, priority, due_date, recurrence, tags\n"
+                    "- Example: create_task(title='Buy groceries', due_date='tomorrow', tags='shopping')\n"
+                    "- If user says 'daily' or 'every day', set recurrence='daily'\n\n"
                     "TASK COMPLETION:\n"
                     "1. Call get_all_tasks FIRST to see all tasks\n"
                     "2. Find the matching task yourself by reading the list\n"
                     "3. Call toggle_task with the exact task ID\n\n"
-                    "TASK UPDATES:\n"
-                    "- Call get_all_tasks first, then use update_task with the specific ID\n\n"
-                    "TASK DELETION:\n"
-                    "- Use delete_tasks_by_search for descriptions like 'delete potato tasks'\n"
-                    "- Use delete_task only when user gives an ID number\n\n"
-                    "CRITICAL:\n"
-                    "- NEVER put recurrence, tags, or priority in the description field!\n"
-                    "- Use the proper parameters: recurrence, tags, priority\n"
-                    "- Tags go in 'tags' parameter as comma-separated names, not in description\n"
-                    "- Always get the task list FIRST before trying to complete/update/delete by description\n"
-                    "- YOU must decide which task matches - don't ask the user to pick from a list if there's an obvious match\n\n"
+                    "TASK UPDATES/DELETION:\n"
+                    "- Call get_all_tasks first, then use update_task or delete_task with the specific ID\n\n"
+                    "CRITICAL RULES:\n"
+                    "- NEVER put tags, recurrence, or priority in the description field!\n"
+                    "- ALWAYS use the proper parameters: tags, recurrence, priority\n"
+                    "- Always get the task list FIRST before trying to complete/update/delete\n"
+                    "- YOU must decide which task matches - don't ask the user to pick if obvious\n\n"
                     "After completing any action, STOP and respond to the user."
                 ),
                 tools=self._tools
