@@ -82,9 +82,10 @@ const TagList = () => {
       }
 
       const tagsData = await response.json();
-      setTags(tagsData);
+      setTags(tagsData || []);
     } catch (err) {
-      setError(err.message);
+      // On error, just show empty state - don't throw error
+      setTags([]);
     } finally {
       setLoading(false);
     }

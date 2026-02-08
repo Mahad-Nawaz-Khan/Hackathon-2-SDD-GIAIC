@@ -61,6 +61,7 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
   const fetchTags = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const token = await getToken();
       const params = new URLSearchParams();
       params.append('limit', '100');
@@ -77,9 +78,10 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
       }
 
       const tagsData = await response.json();
-      setAllTags(tagsData);
+      setAllTags(tagsData || []);
     } catch (err) {
-      setError(err.message);
+      // On error, just show empty state - don't throw error
+      setAllTags([]);
     } finally {
       setIsLoading(false);
     }
@@ -198,6 +200,9 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
               {tag.name}
             </button>
           ))}
+          {allTags.length === 0 && !isLoading && (
+            <span className="text-sm text-white/60">No tags created yet. Create one above.</span>
+          )}
         </div>
       </div>
 
