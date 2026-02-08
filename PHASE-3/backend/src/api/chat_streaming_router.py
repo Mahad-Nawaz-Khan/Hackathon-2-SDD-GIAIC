@@ -40,7 +40,8 @@ async def _stream_response_generator(
     user_id: int,
     session_id: str,
     db_session: Session,
-    conversation_history: Optional[list] = None
+    conversation_history: Optional[list] = None,
+    user_info: Optional[Dict[str, str]] = None
 ) -> AsyncIterator[str]:
     """
     Generator function that yields SSE formatted events.
@@ -51,6 +52,7 @@ async def _stream_response_generator(
         session_id: Session identifier
         db_session: Database session
         conversation_history: Optional conversation history
+        user_info: Optional user information for personalization
 
     Yields:
         SSE formatted strings
@@ -100,7 +102,8 @@ async def _stream_response_generator(
             content=content,
             user_id=user_id,
             db_session=db_session,
-            conversation_history=conversation_history
+            conversation_history=conversation_history,
+            user_info=user_info
         ):
             if event["type"] == "content_delta":
                 # Stream text content
@@ -255,6 +258,14 @@ async def stream_chat_get(
             for msg in messages
         ]
 
+        # Extract user info from Clerk payload for personalized responses
+        user_info = {
+            "name": current_user.get("given_name") or current_user.get("name") or "there",
+            "first_name": current_user.get("given_name", ""),
+            "last_name": current_user.get("family_name", ""),
+            "email": current_user.get("email", "")
+        }
+
         # Return streaming response
         return StreamingResponse(
             _stream_response_generator(
@@ -262,7 +273,8 @@ async def stream_chat_get(
                 user_id=user_id,
                 session_id=session_id,
                 db_session=db_session,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
+                user_info=user_info
             ),
             media_type="text/event-stream",
             headers={
@@ -329,6 +341,14 @@ async def send_chat_message_stream(
             for msg in messages
         ]
 
+        # Extract user info from Clerk payload for personalized responses
+        user_info = {
+            "name": current_user.get("given_name") or current_user.get("name") or "there",
+            "first_name": current_user.get("given_name", ""),
+            "last_name": current_user.get("family_name", ""),
+            "email": current_user.get("email", "")
+        }
+
         # Return streaming response
         return StreamingResponse(
             _stream_response_generator(
@@ -336,7 +356,8 @@ async def send_chat_message_stream(
                 user_id=user_id,
                 session_id=session_id,
                 db_session=db_session,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
+                user_info=user_info
             ),
             media_type="text/event-stream",
             headers={

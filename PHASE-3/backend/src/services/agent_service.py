@@ -435,13 +435,24 @@ class AgentService:
             self._agent = Agent(
                 name="TaskManager",
                 instructions=(
-                    "You are a helpful task management assistant. "
-                    "You help users create, read, update, delete, and search for tasks. "
-                    "When a user asks to do something with tasks, use the available tools to perform the operation. "
-                    "Always provide clear, friendly responses about what actions you've taken. "
-                    "If you need more information, ask the user for clarification. "
-                    "Be concise and helpful in your responses. "
-                    "When you successfully complete an operation, report back to the user what was done."
+                    "You are a friendly and helpful task management assistant. "
+                    "Your job is to help users manage their tasks through natural conversation.\n\n"
+                    "TASK CREATION RULES:\n"
+                    "- When users mention things they need to do, want to do, or should remember, ALWAYS create a task for them.\n"
+                    "- Extract a clear, concise task title from their message. Don't use their entire message as the title.\n"
+                    "  Examples:\n"
+                    "  - User: 'can you add a task for eating potato' → Task title: 'Eat potato'\n"
+                    "  - User: 'remind me to buy groceries tomorrow' → Task title: 'Buy groceries'\n"
+                    "  - User: 'I need to call mom' → Task title: 'Call mom'\n"
+                    "  - User: 'add a task to finish my homework' → Task title: 'Finish homework'\n"
+                    "- If the user mentions a deadline (tomorrow, next week, etc.), set the due_date.\n"
+                    "- If the user indicates high importance, set priority to HIGH.\n\n"
+                    "GENERAL BEHAVIOR:\n"
+                    "- Be conversational and friendly. Use natural language like 'Sure!', 'I've got that', 'Done!', etc.\n"
+                    "- After creating a task, confirm what you did in a friendly way.\n"
+                    "- If users ask to see their tasks, list them clearly.\n"
+                    "- If users ask to complete/update/delete a task, do it and confirm.\n\n"
+                    "Remember: You're here to make task management effortless through natural conversation!"
                 ),
                 tools=self._tools
             )
@@ -464,7 +475,8 @@ class AgentService:
         content: str,
         user_id: int,
         db_session: Session,
-        conversation_history: Optional[List[Dict[str, Any]]] = None
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        user_info: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
         Process a user message using the OpenAI Agents SDK.
@@ -474,6 +486,7 @@ class AgentService:
             user_id: The internal user ID
             db_session: Database session
             conversation_history: Optional conversation history for context
+            user_info: Optional user information for personalization
 
         Returns:
             Dictionary with the response content and any operations performed
@@ -489,16 +502,29 @@ class AgentService:
             # Set the tool context for this request
             _set_tool_context(db_session, user_id)
 
-            # Build input with conversation history
+            # Get user name for personalization
+            user_name = "friend"
+            if user_info:
+                name = user_info.get("name") or user_info.get("first_name")
+                if name:
+                    user_name = name
+
+            # Build input with conversation history and user context
             input_text = content
-            if conversation_history:
+            context_prefix = f"The user's name is {user_name}. "
+
+            if conversation_history and len(conversation_history) > 0:
                 recent_messages = conversation_history[-5:]
                 context_parts = []
                 for msg in recent_messages:
                     sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
                     context_parts.append(f"{sender}: {msg.get('content', '')}")
+
                 if context_parts:
-                    input_text = "Previous conversation:\n" + "\n".join(context_parts) + f"\n\nCurrent user message: {content}"
+                    context_str = "\n".join(context_parts)
+                    input_text = f"{context_prefix}Here is our recent conversation:\n{context_str}\n\nNow, {user_name} says: {content}"
+            else:
+                input_text = f"{context_prefix}{user_name} says: {content}"
 
             # Run the agent
             result = await self._Runner.run(
@@ -534,7 +560,8 @@ class AgentService:
         content: str,
         user_id: int,
         db_session: Session,
-        conversation_history: Optional[List[Dict[str, Any]]] = None
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        user_info: Optional[Dict[str, str]] = None
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Process a user message with streaming response.
@@ -544,6 +571,7 @@ class AgentService:
             user_id: The internal user ID
             db_session: Database session
             conversation_history: Optional conversation history
+            user_info: Optional user information for personalization
 
         Yields:
             Dictionary with streaming events
@@ -558,15 +586,29 @@ class AgentService:
         try:
             _set_tool_context(db_session, user_id)
 
+            # Get user name for personalization
+            user_name = "friend"
+            if user_info:
+                name = user_info.get("name") or user_info.get("first_name")
+                if name:
+                    user_name = name
+
+            # Build input with conversation history and user context
             input_text = content
-            if conversation_history:
+            context_prefix = f"The user's name is {user_name}. "
+
+            if conversation_history and len(conversation_history) > 0:
                 recent_messages = conversation_history[-5:]
                 context_parts = []
                 for msg in recent_messages:
                     sender = "User" if msg.get("sender_type") == "USER" else "Assistant"
                     context_parts.append(f"{sender}: {msg.get('content', '')}")
+
                 if context_parts:
-                    input_text = "Previous conversation:\n" + "\n".join(context_parts) + f"\n\nCurrent user message: {content}"
+                    context_str = "\n".join(context_parts)
+                    input_text = f"{context_prefix}Here is our recent conversation:\n{context_str}\n\nNow, {user_name} says: {content}"
+            else:
+                input_text = f"{context_prefix}{user_name} says: {content}"
 
             result = await self._Runner.run(
                 self._agent,

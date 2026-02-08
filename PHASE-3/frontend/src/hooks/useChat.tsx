@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import chatService from '@/services/chatService';
 
 interface Message {
@@ -22,8 +22,10 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
   const [operationPerformed, setOperationPerformed] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Get Clerk token - use useAuth() to get auth state
+  // Get Clerk token and user info
   const { isLoaded, isSignedIn, getToken, userId } = useAuth();
+  const { user } = useUser();
+  const userName = user?.firstName || user?.fullName || 'friend';
 
   const { autoLoadHistory = true, enableStreaming = true } = options;
 
@@ -262,10 +264,10 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       setOperationPerformed(null);
       setSessionId(chatService.getSessionId());
 
-      // Add welcome message
+      // Personalized welcome message with user's name
       const welcomeMessage: Message = {
         id: Date.now().toString(),
-        text: 'Hello! I\'m your AI assistant for managing tasks. You can ask me to:\n\n• Create tasks\n• Complete tasks\n• Search for tasks\n• List your tasks\n\nHow can I help you today?',
+        text: `Hello ${userName}! I'm your AI assistant for managing tasks. You can ask me to:\n\n• Create tasks\n• Complete tasks\n• Search for tasks\n• List your tasks\n\nHow can I help you today?`,
         sender: 'ai',
         timestamp: new Date(),
       };
@@ -274,7 +276,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
     } catch (error) {
       console.error('Failed to start new conversation:', error);
     }
-  }, []);
+  }, [userName]);
 
   /**
    * Format message text for display (handles newlines, etc.)
