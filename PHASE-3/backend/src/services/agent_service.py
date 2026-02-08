@@ -386,10 +386,8 @@ class AgentService:
             return
 
         try:
-            from agents import Agent, Runner, RunConfig
-            from agents.models import OpenAIChatCompletionsModel
-            from agents import function_tool
-            from openai import AsyncOpenAI
+            from agents import Agent, Runner, RunConfig, OpenAIChatCompletionsModel
+            from agents import function_tool, AsyncOpenAI
 
             if not self._gemini_api_key:
                 logger.warning("GEMINI_API_KEY not found, OpenAI Agents SDK will not be available")
