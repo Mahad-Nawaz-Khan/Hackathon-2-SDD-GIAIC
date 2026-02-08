@@ -358,6 +358,60 @@ def get_task_impl(task_id: int) -> str:
         return f"Sorry, I couldn't retrieve the task. Error: {str(e)}"
 
 
+def delete_tasks_by_search_impl(search_term: str) -> str:
+    """
+    Delete tasks that match a search term in their title or description.
+
+    Args:
+        search_term: The search term to match against task titles
+
+    Returns:
+        A message describing which tasks were deleted
+    """
+    global _tool_context
+    if not _tool_context:
+        return "I'm sorry, I couldn't delete tasks due to a server error."
+
+    try:
+        task_service = _get_task_service()
+        from ..models.task import Task
+
+        # Search for tasks matching the term
+        tasks = task_service.get_tasks(
+            user_id=_tool_context.user_id,
+            db_session=_tool_context.db_session,
+            search=search_term,
+            limit=50
+        )
+
+        if not tasks:
+            return f"No tasks found matching '{search_term}'. Nothing was deleted."
+
+        deleted_count = 0
+        deleted_titles = []
+        for task in tasks:
+            success = task_service.delete_task(
+                task.id, _tool_context.user_id, _tool_context.db_session
+            )
+            if success:
+                deleted_count += 1
+                deleted_titles.append(f"'{task.title}'")
+
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} tasks matching '{search_term}' for user {_tool_context.user_id}")
+            if deleted_count == 1:
+                return f"✓ Deleted {deleted_titles[0]}!"
+            else:
+                return f"✓ Deleted {deleted_count} tasks: {', '.join(deleted_titles)}"
+        else:
+            return f"Found tasks but couldn't delete them. Please try again."
+
+    except Exception as e:
+        logger.error(f"Error deleting tasks by search: {str(e)}")
+        return f"Sorry, I couldn't delete those tasks. Error: {str(e)}"
+
+
+
 # ============================================================================
 # Agent Service Class
 # ============================================================================
@@ -417,6 +471,7 @@ class AgentService:
             update_task_tool = function_tool(update_task_impl)
             toggle_task_tool = function_tool(toggle_task_completion_impl)
             delete_task_tool = function_tool(delete_task_impl)
+            delete_by_search_tool = function_tool(delete_tasks_by_search_impl)
             search_tasks_tool = function_tool(search_tasks_impl)
             list_tasks_tool = function_tool(list_tasks_impl)
             get_task_tool = function_tool(get_task_impl)
@@ -426,6 +481,7 @@ class AgentService:
                 update_task_tool,
                 toggle_task_tool,
                 delete_task_tool,
+                delete_by_search_tool,
                 search_tasks_tool,
                 list_tasks_tool,
                 get_task_tool,
@@ -447,6 +503,11 @@ class AgentService:
                     "  - User: 'add a task to finish my homework' → Task title: 'Finish homework'\n"
                     "- If the user mentions a deadline (tomorrow, next week, etc.), set the due_date.\n"
                     "- If the user indicates high importance, set priority to HIGH.\n\n"
+                    "TASK DELETION RULES:\n"
+                    "- When users ask to delete tasks and describe them by name/description (not ID), use the delete_tasks_by_search tool.\n"
+                    "  Examples: 'delete potato tasks', 'remove all tasks about groceries', 'delete the homework task'\n"
+                    "- Only use the delete_task tool (with ID) if the user specifically provides a task ID number.\n"
+                    "- Always confirm what was deleted.\n\n"
                     "GENERAL BEHAVIOR:\n"
                     "- Be conversational and friendly. Use natural language like 'Sure!', 'I've got that', 'Done!', etc.\n"
                     "- After creating a task, confirm what you did in a friendly way.\n"
