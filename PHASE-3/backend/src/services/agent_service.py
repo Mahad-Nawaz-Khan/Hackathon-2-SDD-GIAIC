@@ -91,7 +91,7 @@ def _get_operation_performed() -> Optional[Dict[str, Any]]:
 # Function Tool Implementations
 # ============================================================================
 
-def create_task_impl(
+def agent_create_task(
     title: str,
     description: str = "",
     priority: str = "MEDIUM",
@@ -335,7 +335,7 @@ def _resolve_tags(tags_str: str) -> List[int]:
     return tag_ids
 
 
-def get_current_date_impl() -> str:
+def agent_get_current_date() -> str:
     """
     Get the current date.
 
@@ -349,7 +349,7 @@ def get_current_date_impl() -> str:
         return "Could not get current date."
 
 
-def create_tag_impl(name: str, color: str = "#94A3B8") -> str:
+def agent_create_tag(name: str, color: str = "#94A3B8") -> str:
     """
     Create a new tag.
 
@@ -392,7 +392,7 @@ def create_tag_impl(name: str, color: str = "#94A3B8") -> str:
         return f"Sorry, I couldn't create that tag. Error: {str(e)}"
 
 
-def list_tags_impl() -> str:
+def agent_list_tags() -> str:
     """
     List all tags for the user.
 
@@ -426,7 +426,7 @@ def list_tags_impl() -> str:
         return f"Sorry, I couldn't retrieve tags. Error: {str(e)}"
 
 
-def update_task_impl(task_id: int, title: str = "", description: str = "", priority: str = "", completed: bool = None) -> str:
+def agent_update_task(task_id: int, title: str = "", description: str = "", priority: str = "", completed: bool = None) -> str:
     """
     Update an existing task.
 
@@ -478,7 +478,7 @@ def update_task_impl(task_id: int, title: str = "", description: str = "", prior
         return f"Sorry, I couldn't update that task. Error: {str(e)}"
 
 
-def toggle_task_completion_impl(task_id: int) -> str:
+def agent_toggle_task(task_id: int) -> str:
     """
     Toggle the completion status of a task.
 
@@ -511,7 +511,7 @@ def toggle_task_completion_impl(task_id: int) -> str:
         return f"Sorry, I couldn't update that task. Error: {str(e)}"
 
 
-def delete_task_impl(task_id: int) -> str:
+def agent_delete_task(task_id: int) -> str:
     """
     Delete a task.
 
@@ -552,7 +552,7 @@ def delete_task_impl(task_id: int) -> str:
         return f"Sorry, I couldn't delete that task. Error: {str(e)}"
 
 
-def delete_tasks_by_search_impl(search_term: str) -> str:
+def agent_delete_by_search(search_term: str) -> str:
     """
     Delete tasks that match a search term using fuzzy matching.
 
@@ -617,7 +617,7 @@ def delete_tasks_by_search_impl(search_term: str) -> str:
         return f"Sorry, I couldn't delete those tasks. Error: {str(e)}"
 
 
-def search_tasks_impl(search: str = "", completed: bool = None, priority: str = "", limit: int = 10) -> str:
+def agent_search_tasks(search: str = "", completed: bool = None, priority: str = "", limit: int = 10) -> str:
     """
     Search for tasks based on criteria.
 
@@ -664,7 +664,7 @@ def search_tasks_impl(search: str = "", completed: bool = None, priority: str = 
         return f"Sorry, I couldn't search tasks. Error: {str(e)}"
 
 
-def list_tasks_impl(limit: int = 10) -> str:
+def agent_list_tasks(limit: int = 10) -> str:
     """
     List all pending tasks.
 
@@ -704,7 +704,7 @@ def list_tasks_impl(limit: int = 10) -> str:
         return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
-def get_task_impl(task_id: int) -> str:
+def agent_get_task(task_id: int) -> str:
     """
     Get details of a specific task.
 
@@ -744,7 +744,7 @@ def get_task_impl(task_id: int) -> str:
         return f"Sorry, I couldn't retrieve the task. Error: {str(e)}"
 
 
-def show_conversation_summary_impl() -> str:
+def agent_show_conversation_summary() -> str:
     """
     Show a summary of what has happened in our conversation so far.
 
@@ -793,7 +793,7 @@ def show_conversation_summary_impl() -> str:
         return "Sorry, I couldn't retrieve the conversation summary."
 
 
-def get_all_tasks_impl() -> str:
+def agent_get_all_tasks() -> str:
     """
     Get all tasks for the user so you can find the right one to operate on.
 
@@ -832,7 +832,7 @@ def get_all_tasks_impl() -> str:
         return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
-def complete_task_by_search_impl(search_term: str) -> str:
+def agent_complete_by_search(search_term: str) -> str:
     """
     Mark a task as completed. Use this when user says they completed something.
 
@@ -873,7 +873,7 @@ def complete_task_by_search_impl(search_term: str) -> str:
                 result_lines.append(f"    Description: {task.description}")
 
         # Add instruction for LLM
-        result_lines.append("\nWhich task matches '" + search_term + "'? Call toggle_task with the specific task ID.")
+        result_lines.append("\nWhich task matches '" + search_term + "'? Call agent_toggle_task with the specific task ID.")
 
         return "\n".join(result_lines)
 
@@ -882,7 +882,7 @@ def complete_task_by_search_impl(search_term: str) -> str:
         return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
-def uncomplete_task_by_search_impl(search_term: str) -> str:
+def agent_uncomplete_by_search(search_term: str) -> str:
     """
     Show completed tasks so the user can choose which one to mark incomplete.
 
@@ -922,7 +922,7 @@ def uncomplete_task_by_search_impl(search_term: str) -> str:
                 result_lines.append(f"    Description: {task.description}")
 
         # Add instruction for LLM
-        result_lines.append("\nWhich task matches '" + search_term + "'? Call toggle_task with the specific task ID.")
+        result_lines.append("\nWhich task matches '" + search_term + "'? Call agent_toggle_task with the specific task ID.")
 
         return "\n".join(result_lines)
 
@@ -931,7 +931,7 @@ def uncomplete_task_by_search_impl(search_term: str) -> str:
         return f"Sorry, I couldn't retrieve tasks. Error: {str(e)}"
 
 
-def update_task_by_search_impl(search_term: str, title: str = "", description: str = "", priority: str = "") -> str:
+def agent_update_by_search(search_term: str, title: str = "", description: str = "", priority: str = "") -> str:
     """
     Show all tasks so the LLM can decide which one to update.
 
@@ -973,7 +973,7 @@ def update_task_by_search_impl(search_term: str, title: str = "", description: s
                 result_lines.append(f"    Description: {task.description}")
 
         # Add instruction for LLM
-        result_lines.append(f"\nWhich task matches '{search_term}'? Call update_task with the specific task ID and new values.")
+        result_lines.append(f"\nWhich task matches '{search_term}'? Call agent_update_task with the specific task ID and new values.")
 
         return "\n".join(result_lines)
 
@@ -1040,22 +1040,22 @@ class AgentService:
             )
 
             # Decorate the implementation functions as tools
-            create_task_tool = function_tool(create_task_impl)
-            create_tag_tool = function_tool(create_tag_impl)
-            update_task_tool = function_tool(update_task_impl)
-            update_by_search_tool = function_tool(update_task_by_search_impl)
-            toggle_task_tool = function_tool(toggle_task_completion_impl)
-            complete_task_tool = function_tool(complete_task_by_search_impl)
-            uncomplete_task_tool = function_tool(uncomplete_task_by_search_impl)
-            delete_task_tool = function_tool(delete_task_impl)
-            delete_by_search_tool = function_tool(delete_tasks_by_search_impl)
-            get_all_tasks_tool = function_tool(get_all_tasks_impl)
-            get_current_date_tool = function_tool(get_current_date_impl)
-            list_tags_tool = function_tool(list_tags_impl)
-            search_tasks_tool = function_tool(search_tasks_impl)
-            list_tasks_tool = function_tool(list_tasks_impl)
-            get_task_tool = function_tool(get_task_impl)
-            show_conversation_tool = function_tool(show_conversation_summary_impl)
+            create_task_tool = function_tool(agent_create_task)
+            create_tag_tool = function_tool(agent_create_tag)
+            update_task_tool = function_tool(agent_update_task)
+            update_by_search_tool = function_tool(agent_update_by_search)
+            toggle_task_tool = function_tool(agent_toggle_task)
+            complete_task_tool = function_tool(agent_complete_by_search)
+            uncomplete_task_tool = function_tool(agent_uncomplete_by_search)
+            delete_task_tool = function_tool(agent_delete_task)
+            delete_by_search_tool = function_tool(agent_delete_by_search)
+            get_all_tasks_tool = function_tool(agent_get_all_tasks)
+            get_current_date_tool = function_tool(agent_get_current_date)
+            list_tags_tool = function_tool(agent_list_tags)
+            search_tasks_tool = function_tool(agent_search_tasks)
+            list_tasks_tool = function_tool(agent_list_tasks)
+            get_task_tool = function_tool(agent_get_task)
+            show_conversation_tool = function_tool(agent_show_conversation_summary)
 
             self._tools = [
                 create_task_tool,
@@ -1082,24 +1082,24 @@ class AgentService:
                 instructions=(
                     "You are a friendly task management assistant. Help users manage tasks efficiently.\n\n"
                     "DATE HANDLING:\n"
-                    "- Use get_current_date to know today's date\n"
+                    "- Use agent_get_current_date to know today's date\n"
                     "- For due dates, use relative terms like 'tomorrow', 'next week', 'in 3 days' or YYYY-MM-DD format\n"
                     "- Days of week work too: 'on friday', 'by monday'\n\n"
                     "TAGS:\n"
-                    "- Use list_tags to see all available tags\n"
-                    "- Use create_tag to create a new tag before using it in a task\n"
+                    "- Use agent_list_tags to see all available tags\n"
+                    "- Use agent_create_tag to create a new tag before using it in a task\n"
                     "- Tags are passed as comma-separated names: tags='work,urgent'\n"
                     "- NEVER put tag names in the title or description field!\n\n"
                     "TASK CREATION:\n"
-                    "- Use create_task with: title (required), description, priority, due_date, recurrence, tags\n"
-                    "- Example: create_task(title='Buy groceries', due_date='tomorrow', tags='shopping')\n"
+                    "- Use agent_create_task with: title (required), description, priority, due_date, recurrence, tags\n"
+                    "- Example: agent_create_task(title='Buy groceries', due_date='tomorrow', tags='shopping')\n"
                     "- If user says 'daily' or 'every day', set recurrence='daily'\n\n"
                     "TASK COMPLETION:\n"
-                    "1. Call get_all_tasks FIRST to see all tasks\n"
+                    "1. Call agent_get_all_tasks FIRST to see all tasks\n"
                     "2. Find the matching task yourself by reading the list\n"
-                    "3. Call toggle_task with the exact task ID\n\n"
+                    "3. Call agent_toggle_task with the exact task ID\n\n"
                     "TASK UPDATES/DELETION:\n"
-                    "- Call get_all_tasks first, then use update_task or delete_task with the specific ID\n\n"
+                    "- Call agent_get_all_tasks first, then use agent_update_task or agent_delete_task with the specific ID\n\n"
                     "CRITICAL RULES:\n"
                     "- NEVER put tags, recurrence, or priority in the description field!\n"
                     "- ALWAYS use the proper parameters: tags, recurrence, priority\n"
