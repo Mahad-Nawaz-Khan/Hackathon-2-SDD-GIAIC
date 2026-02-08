@@ -244,6 +244,26 @@ async def send_chat_message_stream(
         # Generate session ID if not provided
         session_id = message_data.session_id or f"session_{user_id}_{int(hash(current_user.get('sub', '')) % 1000000)}"
 
+        # Handle welcome messages - just save to DB, don't process with AI
+        if getattr(message_data, 'is_welcome', False):
+            ai_message = chat_service.create_ai_message(
+                user_id=user_id,
+                session_id=session_id,
+                content=message_data.content,
+                db_session=db_session
+            )
+
+            # Return simple success response
+            async def welcome_response_generator():
+                yield f"data: {json.dumps({'type': 'final', 'content': message_data.content, 'message': {'id': str(ai_message.id), 'content': message_data.content, 'sender_type': 'AI', 'created_at': ai_message.created_at.isoformat()}})}\\n\\n"
+                yield f"data: [DONE]\\n\\n"
+
+            return StreamingResponse(
+                welcome_response_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
+            )
+
         # Get conversation history for context
         messages = chat_service.get_chat_history(user_id, session_id, db_session, limit=10)
         conversation_history = [

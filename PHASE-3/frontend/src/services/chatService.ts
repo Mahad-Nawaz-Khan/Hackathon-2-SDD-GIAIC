@@ -365,6 +365,32 @@ class ChatService {
   }
 
   /**
+   * Save welcome message to database (so it's included in conversation history)
+   */
+  async saveWelcomeMessage(content: string): Promise<void> {
+    try {
+      const token = await this.getAuthToken();
+
+      // Use the streaming endpoint with is_welcome flag
+      await fetch(`${this.baseUrl}/api/v1/chat/message/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content,
+          session_id: this.sessionId,
+          is_welcome: true,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save welcome message:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Cancel any ongoing request
    */
   cancelRequest(): void {

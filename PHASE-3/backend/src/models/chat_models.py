@@ -143,6 +143,7 @@ class ChatMessageCreate(SQLModel):
     """Request to create a new chat message"""
     content: str
     session_id: Optional[str] = None  # Optional session ID for conversation context
+    is_welcome: bool = False  # If True, this is a welcome message - save but don't process
 
 
 class ChatMessageResponse(SQLModel):

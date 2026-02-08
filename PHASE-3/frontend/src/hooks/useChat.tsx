@@ -54,13 +54,22 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
 
       // If no history, show personalized welcome message
       if (!history.messages || history.messages.length === 0) {
+        const welcomeText = `Hello ${userName}! I'm your AI assistant for managing tasks. You can ask me to:\n\n• Create tasks\n• Complete tasks\n• Search for tasks\n• List your tasks\n\nHow can I help you today?`;
         const welcomeMessage: Message = {
           id: Date.now().toString(),
-          text: `Hello ${userName}! I'm your AI assistant for managing tasks. You can ask me to:\n\n• Create tasks\n• Complete tasks\n• Search for tasks\n• List your tasks\n\nHow can I help you today?`,
+          text: welcomeText,
           sender: 'ai',
           timestamp: new Date(),
         };
         setMessages([welcomeMessage]);
+
+        // Save welcome message to database so it's included in conversation history
+        try {
+          await chatService.saveWelcomeMessage(welcomeText);
+          console.log('[useChat] Welcome message saved to database');
+        } catch (err) {
+          console.warn('[useChat] Could not save welcome message:', err);
+        }
       } else {
         setMessages(history.messages);
       }
