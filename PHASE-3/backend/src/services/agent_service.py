@@ -1033,7 +1033,7 @@ class AgentService:
             # Create external OpenAI client for Z.ai
             external_client = AsyncOpenAI(
                 api_key=api_key,
-                base_url="https://api.z.ai/api/coding/paas/v4"
+                base_url="https://api.z.ai/api/paas/v4/"
             )
 
             # Create the model wrapper (use gpt-4o or compatible model)
