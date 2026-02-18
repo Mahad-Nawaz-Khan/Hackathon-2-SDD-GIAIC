@@ -1,0 +1,21 @@
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: appconfig
+  namespace: todo-app
+spec:
+  # mTLS configuration - must point to sentry service
+  mtls:
+    enabled: true
+    sentryAddress: dapr-sentry.dapr-system.svc.cluster.local:443
+    controlPlaneTrustDomain: cluster.local
+    workloadCertTTL: 24h
+    allowedClockSkew: 15m
+  # Enable metrics for observability
+  metrics:
+    enabled: true
+  # Tracing for debugging
+  tracing:
+    samplingRate: "1"
+    zipkin:
+      endpointAddress: "http://zipkin.dapr-system.svc.cluster.local:9411/api/v2/spans"

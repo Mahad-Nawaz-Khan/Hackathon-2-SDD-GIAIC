@@ -1,0 +1,23 @@
+# Dapr Pub/Sub Component - Production (Strimzi Kafka)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+  namespace: todo-app
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    - name: brokers
+      value: "todo-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+    - name: authRequired
+      value: "false"
+    - name: consumeRetryInterval
+      value: "1000ms"
+    - name: maxRetries
+      value: "5"
+    - name: consumerGroup
+      value: "todo-app"
+scopes:
+  - todo-backend
+  - todo-frontend

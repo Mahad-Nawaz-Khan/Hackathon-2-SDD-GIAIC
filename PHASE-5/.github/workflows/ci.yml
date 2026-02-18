@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v --cov=app --cov-report=xml
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          CLERK_SECRET_KEY: test-key
+          CLERK_ISSUER: https://test.clerk.accounts.dev
+
+  test-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Lint
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Type check
+        run: |
+          cd frontend
+          npm run type-check || npx tsc --noEmit
+
+      - name: Build
+        run: |
+          cd frontend
+          npm run build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_test
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Helm charts
+        run: |
+          helm lint ./todo-chatbot -f ./todo-chatbot/values-prod.yaml
+          helm lint ./todo-chatbot -f ./todo-chatbot/values-local.yaml
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubectl apply --dry-run=client -f ./infra/prod/dapr/components/
+          kubectl apply --dry-run=client -f ./infra/prod/cert-manager/

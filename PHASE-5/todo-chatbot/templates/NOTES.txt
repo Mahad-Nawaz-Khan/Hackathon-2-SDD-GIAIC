@@ -1,0 +1,16 @@
+1. Get the application URL by running these commands:
+{{- if and .Values.ingress .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "todo-chatbot.fullname" . }}-frontend)
+  echo "Frontend URL: http://$(minikube ip):$NODE_PORT"
+
+  echo "Backend URL: http://$(minikube ip):$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "todo-chatbot.fullname" . }}-backend)"
+
+  echo "Or use port-forward:"
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "todo-chatbot.fullname" . }}-frontend 3000:80
+{{- end }}

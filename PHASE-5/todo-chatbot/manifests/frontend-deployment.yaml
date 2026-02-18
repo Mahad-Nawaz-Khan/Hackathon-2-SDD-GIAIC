@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-chatbot-frontend
+  labels:
+    app: todo-chatbot
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-chatbot
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: todo-chatbot
+        component: frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: frontend
+          image: hackathon-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+          securityContext:
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-chatbot-frontend
+  labels:
+    app: todo-chatbot
+    component: frontend
+spec:
+  type: NodePort
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+      nodePort: 30801  # Fixed port for frontend
+  selector:
+    app: todo-chatbot
+    component: frontend

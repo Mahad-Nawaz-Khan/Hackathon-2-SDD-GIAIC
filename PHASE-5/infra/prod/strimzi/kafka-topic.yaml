@@ -1,0 +1,43 @@
+# Strimzi Kafka Topics - Production
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: task-events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: todo-kafka
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 86400000  # 24 hours
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: reminders
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: todo-kafka
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 86400000
+    cleanup.policy: delete
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: task-updates
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: todo-kafka
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 86400000
+    cleanup.policy: delete

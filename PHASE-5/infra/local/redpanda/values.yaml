@@ -1,0 +1,42 @@
+# Redpanda Helm values for local development (Kafka-compatible)
+# Chart: redpanda/redpanda
+# Purpose: Local Kafka replacement for Minikube development
+
+resources:
+  cpu:
+    cores: 1
+  memory:
+    container:
+      max: 2Gi
+
+storage:
+  persistentVolume:
+    enabled: false
+
+statefulset:
+  replicas: 1
+
+listeners:
+  kafka:
+    port: 9092
+  schemaRegistry:
+    port: 8081
+  admin:
+    port: 9644
+
+# Disable TLS for local development
+tls:
+  enabled: false
+
+# Disable authentication for local development
+auth:
+  sasl:
+    enabled: false
+
+# Disable monitoring for local development
+monitoring:
+  enabled: false
+
+# Disable console to save memory
+console:
+  enabled: false

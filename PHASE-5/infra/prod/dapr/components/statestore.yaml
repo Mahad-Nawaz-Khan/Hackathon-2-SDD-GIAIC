@@ -1,0 +1,18 @@
+# Dapr State Store Component - Production (Neon PostgreSQL)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: todo-app
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+    - name: connectionString
+      secretKeyRef:
+        name: neon-credentials
+        key: connection-string
+    - name: actorStateStore
+      value: "true"
+scopes:
+  - todo-backend

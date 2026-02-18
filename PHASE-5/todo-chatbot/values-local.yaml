@@ -1,0 +1,137 @@
+# Local development values (Minikube)
+# Usage: helm install todo-chatbot ./todo-chatbot -f todo-chatbot/values-local.yaml -n todo-app
+
+global:
+  environment: local
+
+# Dapr sidecar injection
+dapr:
+  enabled: true
+  config: "appconfig"
+  logLevel: "debug"
+  sidecar:
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+
+# TLS disabled for local
+tls:
+  enabled: false
+
+# Backend Service (FastAPI)
+backend:
+  enabled: true
+  image:
+    repository: hackathon-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  container:
+    port: 8000
+  env:
+    CORS_ORIGINS: "http://localhost:3000,http://todo-chatbot.local"
+    PORT: "8000"
+  envFromSecrets: []
+  service:
+    type: NodePort
+    port: 8000
+    nodePort: 30800
+    targetPort: 8000
+  ingress:
+    enabled: true
+    className: nginx
+    host: api.todo-chatbot.local
+    path: /
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+
+# Frontend Service (Next.js)
+frontend:
+  enabled: true
+  image:
+    repository: hackathon-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  container:
+    port: 3000
+  env:
+    NODE_ENV: "production"
+    NEXT_PUBLIC_API_URL: "http://todo-chatbot-backend:8000"
+    PORT: "3000"
+  envFromSecrets: []
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30801
+    targetPort: 3000
+  ingress:
+    enabled: true
+    className: nginx
+    host: todo-chatbot.local
+    path: /
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+
+# Common
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,14 @@
+# TLS Certificate - Let's Encrypt via Cert-Manager
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: todo-tls
+  namespace: todo-app
+spec:
+  secretName: todo-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - todo.todo-app.cloud
+    - api.todo-app.cloud

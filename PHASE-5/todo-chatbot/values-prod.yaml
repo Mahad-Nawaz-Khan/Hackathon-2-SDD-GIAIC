@@ -1,0 +1,170 @@
+# Production values (Oracle OKE)
+# Usage: helm upgrade --install todo-chatbot ./todo-chatbot -f todo-chatbot/values-prod.yaml -n todo-app
+
+global:
+  environment: production
+
+# Dapr sidecar injection
+dapr:
+  enabled: true
+  config: "appconfig"
+  logLevel: "info"
+  sidecar:
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+
+# TLS via Cert-Manager
+tls:
+  enabled: true
+  clusterIssuer: "letsencrypt-prod"
+  secretName: "todo-tls"
+
+# Backend Service (FastAPI)
+backend:
+  enabled: true
+  image:
+    repository: ap-mumbai-1.ocir.io/ax12345/todo-chatbot-backend
+    tag: "v1.0.0"
+    pullPolicy: Always
+  replicaCount: 1
+  container:
+    port: 8000
+  env:
+    CORS_ORIGINS: "https://todo.todo-app.cloud"
+    PORT: "8000"
+  envFromSecrets:
+    - name: DATABASE_URL
+      secretName: neon-credentials
+      key: connection-string
+    - name: CLERK_SECRET_KEY
+      secretName: clerk-secrets
+      key: secret-key
+    - name: CLERK_ISSUER
+      secretName: clerk-secrets
+      key: issuer
+    - name: CLERK_JWKS_URL
+      secretName: clerk-secrets
+      key: jwks-url
+    - name: GEMINI_API_KEY
+      secretName: ai-api-keys
+      key: gemini-key
+    - name: GEMINI_MODEL
+      secretName: ai-api-keys
+      key: gemini-model
+    - name: Z_AI_API_KEY
+      secretName: ai-api-keys
+      key: z-ai-key
+    - name: Z_AI_MODEL
+      secretName: ai-api-keys
+      key: z-ai-model
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  ingress:
+    enabled: true
+    className: nginx
+    host: api.todo-app.cloud
+    path: /
+    tls:
+      enabled: true
+      secretName: todo-backend-tls
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+
+# Frontend Service (Next.js)
+frontend:
+  enabled: true
+  image:
+    repository: ap-mumbai-1.ocir.io/ax12345/todo-chatbot-frontend
+    tag: "v1.0.0"
+    pullPolicy: Always
+  replicaCount: 1
+  container:
+    port: 3000
+  env:
+    NODE_ENV: "production"
+    NEXT_PUBLIC_API_URL: "https://api.todo-app.cloud"
+    PORT: "3000"
+  envFromSecrets:
+    - name: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      secretName: clerk-secrets
+      key: publishable-key
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  ingress:
+    enabled: true
+    className: nginx
+    host: todo.todo-app.cloud
+    path: /
+    tls:
+      enabled: true
+      secretName: todo-frontend-tls
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+
+# Common
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
