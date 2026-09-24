@@ -15,8 +15,15 @@ import logging
 import uuid
 
 
+ERROR_RECURRING_DUE_DATE = "For recurring tasks, due date must be today"
+ERROR_TASK_ID_POSITIVE = "Task ID must be positive"
+ERROR_USER_ID_POSITIVE = "User ID must be positive"
+ERROR_TASK_NOT_FOUND = "Task not found or access denied"
+
+
 class TaskService:
     def __init__(self):
+        # Stateless service instance
         pass
 
     def _get_tags_for_user(
@@ -289,9 +296,9 @@ class TaskService:
         try:
             # Validate parameters
             if task_id <= 0:
-                raise ValueError("Task ID must be positive")
+                raise ValueError(ERROR_TASK_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
 
             statement = (
                 select(Task)
@@ -320,9 +327,9 @@ class TaskService:
         try:
             # Validate parameters
             if task_id <= 0:
-                raise ValueError("Task ID must be positive")
+                raise ValueError(ERROR_TASK_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
 
             # Validate task data
             if task_data.title and len(task_data.title.strip()) > 255:
@@ -423,9 +430,9 @@ class TaskService:
         try:
             # Validate parameters
             if task_id <= 0:
-                raise ValueError("Task ID must be positive")
+                raise ValueError(ERROR_TASK_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
 
             task = self.get_task_by_id(task_id, user_id, db_session)
             if not task:
@@ -494,9 +501,9 @@ class TaskService:
         try:
             # Validate parameters
             if task_id <= 0:
-                raise ValueError("Task ID must be positive")
+                raise ValueError(ERROR_TASK_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
 
             task = self.get_task_by_id(task_id, user_id, db_session)
             if not task:

@@ -14,7 +14,7 @@ import { TaskForm } from "../components/TaskForm";
 import TagList from "../components/TagList";
 
 export default function Dashboard() {
-  const { user, isSignedIn, isLoaded } = useUser();
+  const { user, isLoaded } = useUser();
   const [createdTask, setCreatedTask] = useState(null);
 
   if (!isLoaded) {

@@ -165,7 +165,7 @@ def agent_create_task(
 
             if update_data:
                 task_update = TaskUpdateRequest(**update_data)
-                updated_task = task_service.update_task(
+                task_service.update_task(
                     task.id, task_update, _tool_context.user_id, _tool_context.db_session
                 )
                 logger.info(f"Updated existing task {task.id} instead of creating duplicate")
@@ -443,7 +443,7 @@ def agent_update_task(task_id: int, title: str = "", description: str = "", prio
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't update the task due to a server error."
+        return ERROR_UPDATE_SERVER_ERROR
 
     try:
         from ..schemas.task import TaskUpdateRequest
@@ -496,7 +496,7 @@ def agent_toggle_task(task_id: int) -> str:
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't update the task due to a server error."
+        return ERROR_UPDATE_SERVER_ERROR
 
     try:
         task_service = _get_task_service()
@@ -682,7 +682,7 @@ def agent_list_tasks(limit: int = 10) -> str:
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't retrieve tasks due to a server error."
+        return ERROR_RETRIEVE_SERVER_ERROR
 
     try:
         task_service = _get_task_service()
@@ -808,7 +808,7 @@ def agent_get_all_tasks() -> str:
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't retrieve tasks due to a server error."
+        return ERROR_RETRIEVE_SERVER_ERROR
 
     try:
         task_service = _get_task_service()
@@ -853,7 +853,7 @@ def agent_complete_by_search(search_term: str) -> str:
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't update the task due to a server error."
+        return ERROR_UPDATE_SERVER_ERROR
 
     try:
         task_service = _get_task_service()
@@ -902,7 +902,7 @@ def agent_uncomplete_by_search(search_term: str) -> str:
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't retrieve tasks due to a server error."
+        return ERROR_RETRIEVE_SERVER_ERROR
 
     try:
         task_service = _get_task_service()
@@ -954,7 +954,7 @@ def agent_update_by_search(search_term: str, title: str = "", description: str =
     """
     global _tool_context
     if not _tool_context:
-        return "I'm sorry, I couldn't retrieve tasks due to a server error."
+        return ERROR_RETRIEVE_SERVER_ERROR
 
     try:
         task_service = _get_task_service()
@@ -992,6 +992,9 @@ def agent_update_by_search(search_term: str, title: str = "", description: str =
 # Agent Service Class
 # ============================================================================
 
+ERROR_UPDATE_SERVER_ERROR = "I'm sorry, I couldn't update the task due to a server error."
+ERROR_RETRIEVE_SERVER_ERROR = "I'm sorry, I couldn't retrieve tasks due to a server error."
+
 class AgentService:
     """
     Service for managing OpenAI Agents SDK integration.
@@ -1002,7 +1005,7 @@ class AgentService:
     def __init__(self):
         self._initialized = False
         self._agent = None
-        self._Runner = None
+        self._runner = None
         self._run_config = None
         self._tools = []
 
@@ -1352,7 +1355,7 @@ class AgentService:
                 context = result.context
                 if hasattr(context, 'tool_calls') and context.tool_calls:
                     return {"type": "tool_call", "count": len(context.tool_calls)}
-        except Exception as e:
+        except Exception:
             pass
         return None
 

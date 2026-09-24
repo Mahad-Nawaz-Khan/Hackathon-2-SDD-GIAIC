@@ -15,6 +15,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
+NOT_SET = "NOT SET"
+
 
 @router.get("/auth/debug")
 async def auth_debug(request: Request):
@@ -25,14 +27,14 @@ async def auth_debug(request: Request):
     from ..services.agent_service import agent_service
 
     return {
-        "clerk_issuer": os.getenv("CLERK_ISSUER", "NOT SET"),
-        "clerk_jwks_url": os.getenv("CLERK_JWKS_URL", "NOT SET"),
+        "clerk_issuer": os.getenv("CLERK_ISSUER", NOT_SET),
+        "clerk_jwks_url": os.getenv("CLERK_JWKS_URL", NOT_SET),
         "clerk_audience": os.getenv("CLERK_JWT_AUDIENCE", "NOT SET (optional)"),
         "auth_header_present": request.headers.get("Authorization") is not None,
         "auth_header_format": "Bearer <token>" if request.headers.get("Authorization", "").startswith("Bearer ") else "Invalid format",
         "agent_service_available": agent_service.is_available(),
         "gemini_api_key_set": bool(os.getenv("GEMINI_API_KEY")),
-        "gemini_model": os.getenv("GEMINI_MODEL", "NOT SET")
+        "gemini_model": os.getenv("GEMINI_MODEL", NOT_SET)
     }
 
 

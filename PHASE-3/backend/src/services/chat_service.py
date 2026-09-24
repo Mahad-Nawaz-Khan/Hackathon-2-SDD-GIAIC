@@ -166,7 +166,7 @@ class ChatService:
         if intent == IntentTypeEnum.CREATE_TASK:
             # Try to extract title from various patterns
             title_match = re.search(
-                r'\b(create|add|make|new)\s+(a\s+)?task\s+(to|for|about)?\s*(.+?)(?:\s+(?:with|by|priority|$))',
+                r'\b(create|add|make|new)\s+(a\s+)?task\s+(to|for|about)?\s*(.+?)\s+(?:with|by|priority|$)',
                 message_lower
             )
             if title_match:

@@ -1,11 +1,12 @@
 "use client";
 
+import PropTypes from 'prop-types';
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
 const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
   const [allTags, setAllTags] = useState([]);
-  const [newTag, setNewTag] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const { getToken } = useAuth();
@@ -85,51 +86,6 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
     }
   };
 
-  const createTag = async () => {
-    if (!newTag.trim()) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      const token = await getToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tags`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newTag.trim(),
-          color: '#94A3B8',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to create tag: ${response.status}`);
-      }
-
-      const createdTag = await response.json();
-      setAllTags((prev) => [...prev, createdTag]);
-      setNewTag('');
-
-      if (!selectedTags.includes(createdTag.id)) {
-        onTagsChange([...selectedTags, createdTag.id]);
-      }
-
-      window.dispatchEvent(new CustomEvent('tags:changed', {
-        detail: {
-          type: 'created',
-          tag: createdTag,
-        }
-      }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const toggleTag = (tagId) => {
     if (selectedTags.includes(tagId)) {
       onTagsChange(selectedTags.filter(id => id !== tagId));
@@ -202,6 +158,12 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
       </div>
     </div>
   );
+};
+
+TagSelector.propTypes = {
+  taskId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  selectedTags: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])),
+  onTagsChange: PropTypes.func,
 };
 
 export default TagSelector;

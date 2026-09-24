@@ -35,7 +35,7 @@ export interface ChatHistoryResponse {
 type TokenGetter = () => Promise<string | null>;
 
 class ChatService {
-  private baseUrl: string;
+  private readonly baseUrl: string;
   private sessionId: string;
   private tokenGetter: TokenGetter | null = null;
 
@@ -62,7 +62,7 @@ class ChatService {
   }
 
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**

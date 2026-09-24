@@ -23,7 +23,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: frontend
-          image: hackathon-frontend:latest
+          image: hackathon-frontend:1.0.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -53,9 +53,11 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+              ephemeral-storage: 1Gi
             requests:
               cpu: 100m
               memory: 256Mi
+              ephemeral-storage: 256Mi
 ---
 apiVersion: v1
 kind: Service

@@ -7,7 +7,7 @@ export default function ChatLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isSignedIn, isLoaded } = useUser();
+  const { isLoaded } = useUser();
 
   if (!isLoaded) {
     return (

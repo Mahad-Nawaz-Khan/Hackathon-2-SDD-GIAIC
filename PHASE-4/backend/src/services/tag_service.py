@@ -7,6 +7,17 @@ from fastapi import HTTPException
 import logging
 
 
+ERROR_USER_ID_POSITIVE = "User ID must be positive"
+ERROR_TAG_ID_POSITIVE = "Tag ID must be positive"
+
+
+def _validate_tag_name(name: Optional[str]):
+    if name is None or len(str(name).strip()) == 0:
+        raise ValueError("Tag name is required")
+    if len(str(name).strip()) > 100:
+        raise ValueError("Tag name must be less than 100 characters")
+
+
 class TagService:
     def create_tag(self, tag_data: dict, user_id: int, db_session: Session) -> Tag:
         """
@@ -15,11 +26,8 @@ class TagService:
         try:
             # Validate parameters
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
-            if not tag_data.get("name") or len(tag_data["name"].strip()) == 0:
-                raise ValueError("Tag name is required")
-            if len(tag_data["name"].strip()) > 100:
-                raise ValueError("Tag name must be less than 100 characters")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
+            _validate_tag_name(tag_data.get("name"))
 
             # Check if tag already exists for this user
             existing_tag = db_session.exec(
@@ -62,9 +70,9 @@ class TagService:
         try:
             # Validate parameters
             if tag_id <= 0:
-                raise ValueError("Tag ID must be positive")
+                raise ValueError(ERROR_TAG_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
 
             tag = db_session.exec(
                 select(Tag).where(
@@ -88,7 +96,7 @@ class TagService:
         try:
             # Validate parameters
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
             if limit is not None and limit > 100:
                 raise ValueError("Limit cannot exceed 100")
             if offset is not None and offset < 0:
@@ -118,14 +126,11 @@ class TagService:
         try:
             # Validate parameters
             if tag_id <= 0:
-                raise ValueError("Tag ID must be positive")
+                raise ValueError(ERROR_TAG_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
             if "name" in tag_data:
-                if tag_data["name"] is None or len(str(tag_data["name"]).strip()) == 0:
-                    raise ValueError("Tag name is required")
-                if len(str(tag_data["name"]).strip()) > 100:
-                    raise ValueError("Tag name must be less than 100 characters")
+                _validate_tag_name(tag_data["name"])
 
             tag = self.get_tag_by_id(tag_id, user_id, db_session)
             if not tag:
@@ -172,9 +177,9 @@ class TagService:
         try:
             # Validate parameters
             if tag_id <= 0:
-                raise ValueError("Tag ID must be positive")
+                raise ValueError(ERROR_TAG_ID_POSITIVE)
             if user_id <= 0:
-                raise ValueError("User ID must be positive")
+                raise ValueError(ERROR_USER_ID_POSITIVE)
 
             tag = self.get_tag_by_id(tag_id, user_id, db_session)
             if not tag:

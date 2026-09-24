@@ -11,7 +11,10 @@ except ImportError:
     from todo_app.models.task import Task
 
 
-def load_tasks(filename: str = "tasks.json") -> List[Task]:
+DEFAULT_TASKS_FILE = "tasks.json"
+
+
+def load_tasks(filename: str = DEFAULT_TASKS_FILE) -> List[Task]:
     """
     Load tasks from a JSON file.
 
@@ -52,7 +55,7 @@ def load_tasks(filename: str = "tasks.json") -> List[Task]:
         return []
 
 
-def save_tasks_safe(tasks: List[Task], filename: str = "tasks.json") -> bool:
+def save_tasks_safe(tasks: List[Task], filename: str = DEFAULT_TASKS_FILE) -> bool:
     """
     Save tasks to a JSON file with error handling.
 
@@ -81,7 +84,7 @@ def save_tasks_safe(tasks: List[Task], filename: str = "tasks.json") -> bool:
         return False
 
 
-def save_tasks(tasks: List[Task], filename: str = "tasks.json") -> None:
+def save_tasks(tasks: List[Task], filename: str = DEFAULT_TASKS_FILE) -> None:
     """
     Save tasks to a JSON file.
 

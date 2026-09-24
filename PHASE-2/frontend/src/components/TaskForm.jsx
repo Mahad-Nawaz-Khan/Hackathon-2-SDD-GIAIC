@@ -1,5 +1,7 @@
 "use client";
 
+import PropTypes from 'prop-types';
+
 import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import TagSelector from './TagSelector';

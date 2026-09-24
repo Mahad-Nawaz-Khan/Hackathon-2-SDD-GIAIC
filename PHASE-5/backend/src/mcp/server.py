@@ -13,6 +13,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+ERROR_DB_CONTEXT_NOT_SET = "Database context not set"
+ERROR_INTERNAL_SERVER_ERROR = "Internal server error"
+ERROR_TASK_NOT_FOUND = "Task not found"
+
+
+def _format_priority_label(priority: Optional[str]) -> str:
+    if priority == "HIGH":
+        return "[HIGH]"
+    if priority == "MEDIUM":
+        return "[MED]"
+    return "[LOW]"
+
+
+def _format_priority_icon(priority: Optional[str]) -> str:
+    if priority == "HIGH":
+        return "🔴"
+    if priority == "MEDIUM":
+        return "🟡"
+    return "🟢"
+
+
 # Create the MCP server instance
 mcp_server = FastMCP(
     "Task Management Service",
@@ -92,8 +113,8 @@ def create_task(title: str, description: Optional[str] = None,
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         from ..schemas.task import TaskCreateRequest
@@ -170,8 +191,8 @@ def update_task(task_id: int,
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         from ..schemas.task import TaskUpdateRequest
@@ -183,7 +204,7 @@ def update_task(task_id: int,
         if not current_task:
             return {
                 "success": False,
-                "error": "Task not found",
+                "error": ERROR_TASK_NOT_FOUND,
                 "message": "Could not find the task to update."
             }
 
@@ -249,8 +270,8 @@ def toggle_task_completion(task_id: int):
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         task = manager.task_service.toggle_task_completion(
@@ -294,8 +315,8 @@ def delete_task(task_id: int):
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         # Get task first for confirmation message
@@ -305,7 +326,7 @@ def delete_task(task_id: int):
         if not task:
             return {
                 "success": False,
-                "error": "Task not found",
+                "error": ERROR_TASK_NOT_FOUND,
                 "message": "Task not found. Could not find the task to delete."
             }
 
@@ -357,8 +378,8 @@ def search_tasks(search: Optional[str] = None,
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         # Search tasks using task service
@@ -413,8 +434,8 @@ def list_today_tasks():
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         today = datetime.now().strftime("%Y-%m-%d")
@@ -473,8 +494,8 @@ def get_task(task_id: int):
         if not manager._db_session or not manager._user_id:
             return {
                 "success": False,
-                "error": "Database context not set",
-                "message": "Internal server error"
+                "error": ERROR_DB_CONTEXT_NOT_SET,
+                "message": ERROR_INTERNAL_SERVER_ERROR
             }
 
         task = manager.task_service.get_task_by_id(
@@ -484,7 +505,7 @@ def get_task(task_id: int):
         if not task:
             return {
                 "success": False,
-                "error": "Task not found",
+                "error": ERROR_TASK_NOT_FOUND,
                 "message": "Task not found. Could not find the specified task."
             }
 
@@ -606,7 +627,7 @@ def task_review() -> str:
 
     prompt = "Here are your pending tasks:\n\n"
     for task in tasks:
-        status = "[HIGH]" if task.priority == "HIGH" else "[MED]" if task.priority == "MEDIUM" else "[LOW]"
+        status = _format_priority_label(task.priority)
         prompt += f"{status} {task.title}"
         if task.due_date:
             prompt += f" (Due: {task.due_date.strftime('%Y-%m-%d')})"
@@ -648,7 +669,7 @@ def daily_plan() -> str:
     if today_tasks:
         prompt += "Today's Tasks:\n"
         for task in today_tasks:
-            status = "🔴" if task.priority == "HIGH" else "🟡" if task.priority == "MEDIUM" else "🟢"
+            status = _format_priority_icon(task.priority)
             prompt += f"{status} {task.title}\n"
         prompt += "\n"
 

@@ -15,7 +15,7 @@ import TagList from "../components/TagList";
 import ChatInterface from "../components/ChatInterface";
 
 export default function Dashboard() {
-  const { user, isSignedIn, isLoaded } = useUser();
+  const { user, isLoaded } = useUser();
   const [createdTask, setCreatedTask] = useState(null);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
 

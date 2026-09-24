@@ -1,12 +1,11 @@
 "use client";
 
+import PropTypes from 'prop-types';
+
 import { useUser, SignIn } from '@clerk/nextjs';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 const ProtectedRoute = ({ children }) => {
   const { isSignedIn, isLoaded } = useUser();
-  const router = useRouter();
 
   // If the user is not loaded yet, show a loading state
   if (!isLoaded) {
@@ -27,6 +26,10 @@ const ProtectedRoute = ({ children }) => {
 
   // If the user is signed in, render the protected content
   return children;
+};
+
+ProtectedRoute.propTypes = {
+  children: PropTypes.node,
 };
 
 export default ProtectedRoute;

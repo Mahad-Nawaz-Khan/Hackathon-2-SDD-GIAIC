@@ -55,9 +55,10 @@ class ClerkAuthMiddleware:
 
     def _get_audience(self, token_claims: Dict[str, Any]):
         # Only validate audience if you explicitly configured it.
+        _ = token_claims
         return self.audience_override
 
-    async def get_jwks(self) -> Dict:
+    def get_jwks(self) -> Dict:
         """Get JWKS from Clerk, with caching"""
         current_time = time.time()
         if (self.jwks_cache is None or

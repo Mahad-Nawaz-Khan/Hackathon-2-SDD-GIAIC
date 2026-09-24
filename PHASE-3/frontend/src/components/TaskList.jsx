@@ -1,5 +1,7 @@
 "use client";
 
+import PropTypes from 'prop-types';
+
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { TaskItem } from './TaskItem';
 import { useAuth } from '@clerk/nextjs';
@@ -124,7 +126,7 @@ export const TaskList = ({ createdTask }) => {
   }, [searchInput]);
 
   useEffect(() => {
-    if (!createdTask || !createdTask.id) {
+    if (!createdTask?.id) {
       return;
     }
 

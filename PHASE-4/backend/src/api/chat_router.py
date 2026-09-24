@@ -77,6 +77,159 @@ def _chat_message_to_response(message) -> ChatMessageResponse:
     )
 
 
+
+DEFAULT_HELP_MESSAGE = (
+    "I'm here to help you manage your tasks! You can ask me to:\n"
+    "• Create a task (e.g., 'Create a task to buy groceries')\n"
+    "• Complete a task (e.g., 'Complete task 1')\n"
+    "• Delete a task (e.g., 'Delete task 1')\n"
+    "• Search tasks (e.g., 'Search for grocery tasks')\n"
+    "• List your tasks (e.g., 'Show me my tasks' or 'What do I have today?')"
+)
+
+
+async def _handle_create_intent(content: str, user_id: int, db_session: Session):
+    params = chat_service.classify_intent(content).parameters
+    if "title" not in params and content:
+        params["title"] = content[:100]
+
+    async def create_task_with_retry():
+        return task_crud_tools.create_task(params, user_id, db_session)
+
+    try:
+        result = await retry_with_backoff(
+            create_task_with_retry,
+            max_retries=2,
+            exceptions=(Exception,)
+        )
+        if result.get("success"):
+            return result.get("message", "Task created successfully!"), {"type": "create_task", "result": result.get("task")}
+        return result.get("message", "I couldn't create that task. Please try again."), None
+    except Exception as e:
+        logger.error(f"Failed to create task after retries: {str(e)}")
+        return "I'm having trouble creating that task right now. Please try again later.", None
+
+
+def _handle_update_intent(content: str, user_id: int, db_session: Session):
+    content_lower = content.lower()
+    task_match = re.search(r'task\s*(\d+)|#(\d+)|^\s*(\d+)', content_lower)
+    task_id = int(task_match.group(1) or task_match.group(2) or task_match.group(3)) if task_match else None
+
+    completed = None
+    if any(word in content_lower for word in ['complete', 'finish', 'done', 'mark as done']):
+        completed = True
+    elif any(word in content_lower for word in ['incomplete', 'not done', 'uncomplete']):
+        completed = False
+
+    if task_id and completed is not None:
+        result = task_crud_tools.toggle_task_completion(task_id, user_id, db_session)
+        if result.get("success"):
+            return result.get("message", "Task updated successfully!"), {"type": "toggle_task", "result": result.get("task")}
+        return result.get("message", "I couldn't find that task. Please check the task number."), None
+
+    search_term = re.sub(r'\b(complete|finish|done|mark|as|the|task)\b', '', content_lower).strip()
+    if search_term:
+        task = task_crud_tools.get_task_by_search_term(search_term, user_id, db_session)
+        if task and completed is not None:
+            result = task_crud_tools.toggle_task_completion(task["id"], user_id, db_session)
+            if result.get("success"):
+                return result.get("message", "Task updated successfully!"), {"type": "toggle_task", "result": result.get("task")}
+            return result.get("message", "I couldn't update that task."), None
+        return "I couldn't find a matching task. Please be more specific or use the task number.", None
+    return "Please specify which task you want to update. You can use the task number or describe it.", None
+
+
+async def _handle_delete_intent(content: str, user_id: int, db_session: Session):
+    task_match = re.search(r'task\s*(\d+)|#(\d+)|^\s*(\d+)', content.lower())
+    task_id = int(task_match.group(1) or task_match.group(2) or task_match.group(3)) if task_match else None
+
+    if not task_id:
+        return "Please specify which task you want to delete by using the task number.", None
+
+    async def delete_task_with_retry():
+        return task_crud_tools.delete_task(task_id, user_id, db_session)
+
+    try:
+        result = await retry_with_backoff(
+            delete_task_with_retry,
+            max_retries=2,
+            exceptions=(Exception,)
+        )
+        if result.get("success"):
+            return result.get("message", "Task deleted successfully!"), {"type": "delete_task", "task_id": task_id}
+        return result.get("message", "I couldn't find that task to delete."), None
+    except Exception as e:
+        logger.error(f"Failed to delete task after retries: {str(e)}")
+        return "I'm having trouble deleting that task right now. Please try again later.", None
+
+
+def _handle_search_intent(content: str, user_id: int, db_session: Session):
+    search_match = re.search(r'(?:search|find|look\s+for)\s+(?:tasks?)?\s*(.+)', content.lower())
+    search_term = search_match.group(1).strip() if search_match else None
+    if search_term:
+        for word in ['with', 'containing', 'that', 'have']:
+            if word in search_term:
+                search_term = search_term.split(word)[0].strip()
+
+    params = {"search": search_term} if search_term else {}
+    result = task_crud_tools.search_tasks(params, user_id, db_session)
+
+    if result.get("success") and result.get("tasks"):
+        task_count = result.get("count", 0)
+        lines = [f"Found {task_count} task(s):\n"]
+        for task in result.get("tasks", []):
+            status = "✓" if task["completed"] else "○"
+            line = f"{status} {task['title']}"
+            if task.get("due_date"):
+                line += f" (Due: {task['due_date']})"
+            lines.append(line)
+        return "\n".join(lines), {"type": "search_tasks", "count": task_count}
+    return "I couldn't find any matching tasks.", None
+
+
+def _handle_list_intent(content: str, user_id: int, db_session: Session):
+    content_lower = content.lower()
+    if any(word in content_lower for word in ['today', "today's"]):
+        result = task_crud_tools.list_today_tasks(user_id, db_session)
+        if result.get("success") and result.get("tasks"):
+            task_count = result.get("count", 0)
+            lines = [f"You have {task_count} task(s) due today:\n"]
+            for task in result.get("tasks", []):
+                status = "✓" if task["completed"] else "○"
+                p_tag = f" [{task['priority']}]" if task.get("priority") else ""
+                lines.append(f"{status} {task['title']}{p_tag}")
+            return "\n".join(lines), {"type": "list_today_tasks", "count": task_count}
+        return "You don't have any tasks due today. Great job!", None
+
+    result = task_crud_tools.search_tasks({"completed": False, "limit": 10}, user_id, db_session)
+    if result.get("success") and result.get("tasks"):
+        task_count = result.get("count", 0)
+        lines = [f"Here are your pending tasks ({task_count}):\n"]
+        for task in result.get("tasks", []):
+            status = "✓" if task["completed"] else "○"
+            p_tag = f" [{task['priority']}]" if task.get("priority") else ""
+            lines.append(f"{status} {task['title']}{p_tag}")
+        return "\n".join(lines), {"type": "list_tasks", "count": task_count}
+    return "You don't have any pending tasks. Great job!", None
+
+
+def _handle_read_intent(content: str, user_id: int, db_session: Session):
+    search_match = re.search(r'(?:show|get|tell\s+me\s+about)\s+(?:the\s+)?task\s*(.+)', content.lower())
+    search_term = search_match.group(1).strip() if search_match else ""
+    task = task_crud_tools.get_task_by_search_term(search_term, user_id, db_session)
+    if task:
+        status = "Completed" if task["completed"] else "Pending"
+        lines = [f"Task: {task['title']}", f"Status: {status}"]
+        if task.get("description"):
+            lines.append(f"Description: {task['description']}")
+        if task.get("due_date"):
+            lines.append(f"Due: {task['due_date']}")
+        if task.get("priority"):
+            lines.append(f"Priority: {task['priority']}")
+        return "\n".join(lines), {"type": "read_task", "task_id": task["id"]}
+    return "I couldn't find a task matching that description.", None
+
+
 @router.post("/message", response_model=ChatResponse)
 @limiter.limit("30/minute")
 async def send_chat_message(
@@ -120,201 +273,19 @@ async def send_chat_message(
         if confidence < 0.6 and intent:
             ai_response_content = "I'm not sure I understood that correctly. Could you please rephrase? For example, you can say 'Create a task to buy groceries' or 'Show me my tasks'."
         elif intent == IntentTypeEnum.CREATE_TASK.value:
-            # Extract parameters from intent detection result
-            params = chat_service.classify_intent(message_data.content).parameters
-
-            # Add the message content as title if not extracted
-            if "title" not in params and message_data.content:
-                params["title"] = message_data.content[:100]  # Use first 100 chars as title
-
-            # Create task using the task CRUD tools with retry
-            async def create_task_with_retry():
-                return task_crud_tools.create_task(params, user_id, db_session)
-
-            try:
-                result = await retry_with_backoff(
-                    create_task_with_retry,
-                    max_retries=2,
-                    exceptions=(Exception,)
-                )
-
-                if result.get("success"):
-                    ai_response_content = result.get("message", "Task created successfully!")
-                    operation_performed = {"type": "create_task", "result": result.get("task")}
-                else:
-                    ai_response_content = result.get("message", "I couldn't create that task. Please try again.")
-            except Exception as e:
-                logger.error(f"Failed to create task after retries: {str(e)}")
-                ai_response_content = "I'm having trouble creating that task right now. Please try again later."
-
+            ai_response_content, operation_performed = await _handle_create_intent(message_data.content, user_id, db_session)
         elif intent == IntentTypeEnum.UPDATE_TASK.value:
-            # Try to extract task ID from message
-            content_lower = message_data.content.lower()
-            # Look for task number patterns like "task 1", "task #1", "1", etc.
-            import re
-            task_match = re.search(r'task\s*(\d+)|#(\d+)|^\s*(\d+)', content_lower)
-            task_id = None
-            if task_match:
-                task_id = int(task_match.group(1) or task_match.group(2) or task_match.group(3))
-
-            # Extract completion status
-            completed = None
-            if any(word in content_lower for word in ['complete', 'finish', 'done', 'mark as done']):
-                completed = True
-            elif any(word in content_lower for word in ['incomplete', 'not done', 'uncomplete']):
-                completed = False
-
-            if task_id and completed is not None:
-                result = task_crud_tools.toggle_task_completion(task_id, user_id, db_session)
-                if result.get("success"):
-                    ai_response_content = result.get("message", "Task updated successfully!")
-                    operation_performed = {"type": "toggle_task", "result": result.get("task")}
-                else:
-                    ai_response_content = result.get("message", "I couldn't find that task. Please check the task number.")
-            else:
-                # Search for a task by content and mark as complete
-                search_term = re.sub(r'\b(complete|finish|done|mark|as|the|task)\b', '', content_lower).strip()
-                if search_term:
-                    task = task_crud_tools.get_task_by_search_term(search_term, user_id, db_session)
-                    if task and completed is not None:
-                        result = task_crud_tools.toggle_task_completion(task["id"], user_id, db_session)
-                        if result.get("success"):
-                            ai_response_content = result.get("message", "Task updated successfully!")
-                            operation_performed = {"type": "toggle_task", "result": result.get("task")}
-                        else:
-                            ai_response_content = result.get("message", "I couldn't update that task.")
-                    else:
-                        ai_response_content = "I couldn't find a matching task. Please be more specific or use the task number."
-                else:
-                    ai_response_content = "Please specify which task you want to update. You can use the task number or describe it."
-
+            ai_response_content, operation_performed = _handle_update_intent(message_data.content, user_id, db_session)
         elif intent == IntentTypeEnum.DELETE_TASK.value:
-            # Try to extract task ID from message
-            import re
-            task_match = re.search(r'task\s*(\d+)|#(\d+)|^\s*(\d+)', message_data.content.lower())
-            task_id = None
-            if task_match:
-                task_id = int(task_match.group(1) or task_match.group(2) or task_match.group(3))
-
-            if task_id:
-                async def delete_task_with_retry():
-                    return task_crud_tools.delete_task(task_id, user_id, db_session)
-
-                try:
-                    result = await retry_with_backoff(
-                        delete_task_with_retry,
-                        max_retries=2,
-                        exceptions=(Exception,)
-                    )
-                    if result.get("success"):
-                        ai_response_content = result.get("message", "Task deleted successfully!")
-                        operation_performed = {"type": "delete_task", "task_id": task_id}
-                    else:
-                        ai_response_content = result.get("message", "I couldn't find that task to delete.")
-                except Exception as e:
-                    logger.error(f"Failed to delete task after retries: {str(e)}")
-                    ai_response_content = "I'm having trouble deleting that task right now. Please try again later."
-            else:
-                ai_response_content = "Please specify which task you want to delete by using the task number."
-
+            ai_response_content, operation_performed = await _handle_delete_intent(message_data.content, user_id, db_session)
         elif intent == IntentTypeEnum.SEARCH_TASKS.value:
-            # Extract search term
-            import re
-            search_match = re.search(r'(?:search|find|look\s+for)\s+(?:tasks?)?\s*(.+)', message_data.content.lower())
-            search_term = None
-            if search_match:
-                search_term = search_match.group(1).strip()
-                # Remove trailing words
-                for word in ['with', 'containing', 'that', 'have']:
-                    if word in search_term:
-                        search_term = search_term.split(word)[0].strip()
-
-            params = {"search": search_term} if search_term else {}
-            result = task_crud_tools.search_tasks(params, user_id, db_session)
-
-            if result.get("success") and result.get("tasks"):
-                task_count = result.get("count", 0)
-                ai_response_content = f"Found {task_count} task(s):\n\n"
-                for task in result.get("tasks", []):
-                    status = "✓" if task["completed"] else "○"
-                    ai_response_content += f"{status} {task['title']}"
-                    if task.get("due_date"):
-                        ai_response_content += f" (Due: {task['due_date']})"
-                    ai_response_content += "\n"
-                operation_performed = {"type": "search_tasks", "count": task_count}
-            else:
-                ai_response_content = "I couldn't find any matching tasks."
-
+            ai_response_content, operation_performed = _handle_search_intent(message_data.content, user_id, db_session)
         elif intent == IntentTypeEnum.LIST_TASKS.value:
-            # Check if asking for today's tasks
-            content_lower = message_data.content.lower()
-            if any(word in content_lower for word in ['today', "today's"]):
-                result = task_crud_tools.list_today_tasks(user_id, db_session)
-                if result.get("success") and result.get("tasks"):
-                    task_count = result.get("count", 0)
-                    ai_response_content = f"You have {task_count} task(s) due today:\n\n"
-                    for task in result.get("tasks", []):
-                        status = "✓" if task["completed"] else "○"
-                        ai_response_content += f"{status} {task['title']}"
-                        if task.get("priority"):
-                            ai_response_content += f" [{task['priority']}]"
-                        ai_response_content += "\n"
-                    operation_performed = {"type": "list_today_tasks", "count": task_count}
-                else:
-                    ai_response_content = "You don't have any tasks due today. Great job!"
-            else:
-                # List all pending tasks
-                result = task_crud_tools.search_tasks(
-                    {"completed": False, "limit": 10},
-                    user_id,
-                    db_session
-                )
-                if result.get("success") and result.get("tasks"):
-                    task_count = result.get("count", 0)
-                    ai_response_content = f"Here are your pending tasks ({task_count}):\n\n"
-                    for task in result.get("tasks", []):
-                        status = "✓" if task["completed"] else "○"
-                        ai_response_content += f"{status} {task['title']}"
-                        if task.get("priority"):
-                            ai_response_content += f" [{task['priority']}]"
-                        ai_response_content += "\n"
-                    operation_performed = {"type": "list_tasks", "count": task_count}
-                else:
-                    ai_response_content = "You don't have any pending tasks. Great job!"
-
+            ai_response_content, operation_performed = _handle_list_intent(message_data.content, user_id, db_session)
         elif intent == IntentTypeEnum.READ_TASK.value:
-            # Similar to search, find a specific task
-            import re
-            search_match = re.search(r'(?:show|get|tell\s+me\s+about)\s+(?:the\s+)?task\s*(.+)', message_data.content.lower())
-            search_term = None
-            if search_match:
-                search_term = search_match.group(1).strip()
-
-            task = task_crud_tools.get_task_by_search_term(search_term or "", user_id, db_session)
-            if task:
-                status = "Completed" if task["completed"] else "Pending"
-                ai_response_content = f"Task: {task['title']}\n"
-                ai_response_content += f"Status: {status}\n"
-                if task.get("description"):
-                    ai_response_content += f"Description: {task['description']}\n"
-                if task.get("due_date"):
-                    ai_response_content += f"Due: {task['due_date']}\n"
-                if task.get("priority"):
-                    ai_response_content += f"Priority: {task['priority']}\n"
-                operation_performed = {"type": "read_task", "task_id": task["id"]}
-            else:
-                ai_response_content = "I couldn't find a task matching that description."
-
+            ai_response_content, operation_performed = _handle_read_intent(message_data.content, user_id, db_session)
         else:
-            # Unknown intent
-            ai_response_content = (
-                "I'm here to help you manage your tasks! You can ask me to:\n"
-                "• Create a task (e.g., 'Create a task to buy groceries')\n"
-                "• Complete a task (e.g., 'Complete task 1')\n"
-                "• Delete a task (e.g., 'Delete task 1')\n"
-                "• Search tasks (e.g., 'Search for grocery tasks')\n"
-                "• List your tasks (e.g., 'Show me my tasks' or 'What do I have today?')"
-            )
+            ai_response_content = DEFAULT_HELP_MESSAGE
 
         # Mark user message as processed
         user_message.processed = True

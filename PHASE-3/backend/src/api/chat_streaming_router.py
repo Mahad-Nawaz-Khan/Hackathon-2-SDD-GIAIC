@@ -34,6 +34,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat-streaming"])
 
+MEDIA_TYPE_EVENT_STREAM = "text/event-stream"
+
 
 async def _stream_response_generator(
     content: str,
@@ -195,7 +197,7 @@ async def stream_chat_get(
                 conversation_history=conversation_history,
                 user_info=user_info
             ),
-            media_type="text/event-stream",
+            media_type=MEDIA_TYPE_EVENT_STREAM,
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
@@ -265,7 +267,7 @@ async def send_chat_message_stream(
 
             return StreamingResponse(
                 welcome_response_generator(),
-                media_type="text/event-stream",
+                media_type=MEDIA_TYPE_EVENT_STREAM,
                 headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
             )
 
@@ -298,7 +300,7 @@ async def send_chat_message_stream(
                 conversation_history=conversation_history,
                 user_info=user_info
             ),
-            media_type="text/event-stream",
+            media_type=MEDIA_TYPE_EVENT_STREAM,
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",

@@ -27,7 +27,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     messages,
     sendMessage,
     isLoading,
-    clearMessages,
     startNewConversation,
     formatMessage,
   } = useChat(initialMessages, { autoLoadHistory: !initialMessages.length });
@@ -94,6 +93,65 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     if (confirm('Start a new conversation? This will clear your chat history.')) {
       startNewConversation();
     }
+  };
+
+  const renderInputControls = () => {
+    if (!userLoaded) {
+      return (
+        <div className="text-center text-white/50 text-sm py-2">
+          Loading...
+        </div>
+      );
+    }
+    if (!user) {
+      return (
+        <div className="text-center text-white/50 text-sm py-2">
+          Please <a href="/sign-in" className="text-blue-400 hover:text-blue-300 underline">sign in</a> to use the chat
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex-1 relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask me to create, update, or find tasks..."
+            disabled={isLoading}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 pr-12 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            aria-label="Type your message"
+            maxLength={5000}
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 text-xs">
+            {inputText.length}/5000
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={!inputText.trim() || isLoading}
+          className={`px-4 py-2.5 rounded-lg font-medium transition-all ${
+            inputText.trim() && !isLoading
+              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20'
+              : 'bg-white/5 text-white/40 cursor-not-allowed'
+          }`}
+          aria-label="Send message"
+        >
+          {isLoading ? (
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          )}
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -195,56 +253,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       {/* Input area */}
       <form onSubmit={handleSend} className="border-t border-white/10 p-3 bg-slate-900/30">
-        {!userLoaded ? (
-          <div className="text-center text-white/50 text-sm py-2">
-            Loading...
-          </div>
-        ) : !user ? (
-          <div className="text-center text-white/50 text-sm py-2">
-            Please <a href="/sign-in" className="text-blue-400 hover:text-blue-300 underline">sign in</a> to use the chat
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask me to create, update, or find tasks..."
-                disabled={isLoading}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 pr-12 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                aria-label="Type your message"
-                maxLength={5000}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 text-xs">
-                {inputText.length}/5000
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={!inputText.trim() || isLoading}
-              className={`px-4 py-2.5 rounded-lg font-medium transition-all ${
-                inputText.trim() && !isLoading
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20'
-                  : 'bg-white/5 text-white/40 cursor-not-allowed'
-              }`}
-              aria-label="Send message"
-            >
-              {isLoading ? (
-                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              )}
-            </button>
-          </div>
-        )}
+        {renderInputControls()}
       </form>
     </div>
   );

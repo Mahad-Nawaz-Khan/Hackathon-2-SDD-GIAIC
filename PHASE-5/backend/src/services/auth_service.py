@@ -1,10 +1,11 @@
+import asyncio
+import logging
 from sqlmodel import Session, select
 from ..models.user import User
 from typing import Optional
 from ..middleware.auth import get_current_user
 from fastapi import Depends, HTTPException
 from typing import Dict, Any
-import logging
 
 # Configure logging for security events
 security_logger = logging.getLogger("security")
@@ -20,6 +21,7 @@ if not security_logger.handlers:
 
 class AuthService:
     def __init__(self):
+        # Stateless service instance
         pass
 
     async def get_or_create_user_from_clerk_payload(
@@ -30,6 +32,7 @@ class AuthService:
         """
         Get existing user by clerk_user_id or create a new one
         """
+        await asyncio.sleep(0)  # Async yield to event loop
         clerk_user_id = clerk_payload.get("sub")  # Clerk's standard user ID field
 
         if not clerk_user_id:

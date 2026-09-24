@@ -1,5 +1,7 @@
 "use client";
 
+import PropTypes from 'prop-types';
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
@@ -334,6 +336,12 @@ const TagList = () => {
       )}
     </div>
   );
+};
+
+
+TagList.propTypes = {
+  onTagsFetched: PropTypes.func,
+  onTagSelected: PropTypes.func,
 };
 
 export default TagList;

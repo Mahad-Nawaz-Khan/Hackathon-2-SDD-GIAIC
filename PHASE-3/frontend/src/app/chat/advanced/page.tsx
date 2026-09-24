@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import ChatInterface from '@/components/ChatInterface';
-import { useChat } from '@/hooks/useChat';
 
 // Use the same Message type as ChatInterface to avoid type conflicts
 interface Message {

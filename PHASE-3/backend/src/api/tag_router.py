@@ -15,6 +15,9 @@ limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/v1", tags=["tags"])
 
+ERROR_USER_NOT_FOUND = "User not found"
+ERROR_TAG_NOT_FOUND = "Tag not found or access denied"
+
 
 class TagCreateRequest(BaseModel):
     name: str
@@ -48,7 +51,7 @@ def get_tags(
     from ..services.auth_service import auth_service
     user = auth_service.get_user_by_clerk_id(auth_service.get_current_user_id(current_user), db_session)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     tags = tag_service.get_tags(
         user_id=user.id,
@@ -82,7 +85,7 @@ def create_tag(
     # Get user by Clerk user ID to get the integer user_id
     user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     user_id = user.id
 
@@ -123,7 +126,7 @@ def get_tag_by_id(
     # Get user by Clerk user ID to get the integer user_id
     user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     user_id = user.id
 
@@ -136,7 +139,7 @@ def get_tag_by_id(
     if not tag:
         raise HTTPException(
             status_code=404,
-            detail="Tag not found or access denied"
+            detail=ERROR_TAG_NOT_FOUND
         )
 
     return TagResponse(
@@ -165,7 +168,7 @@ def update_tag(
     # Get user by Clerk user ID to get the integer user_id
     user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     user_id = user.id
 
@@ -180,7 +183,7 @@ def update_tag(
         if not updated_tag:
             raise HTTPException(
                 status_code=404,
-                detail="Tag not found or access denied"
+                detail=ERROR_TAG_NOT_FOUND
             )
 
         return TagResponse(
@@ -213,7 +216,7 @@ def delete_tag(
     # Get user by Clerk user ID to get the integer user_id
     user = auth_service.get_user_by_clerk_id(clerk_user_id, db_session)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     user_id = user.id
 
@@ -226,8 +229,6 @@ def delete_tag(
     if not success:
         raise HTTPException(
             status_code=404,
-            detail="Tag not found or access denied"
+            detail=ERROR_TAG_NOT_FOUND
         )
 
-    # Return 204 No Content
-    return

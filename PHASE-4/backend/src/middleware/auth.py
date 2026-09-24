@@ -59,6 +59,7 @@ class ClerkAuthMiddleware:
 
     def _get_audience(self, token_claims: Dict[str, Any]):
         # Only validate audience if you explicitly configured it.
+        _ = token_claims
         return self.audience_override
 
     async def get_jwks_for_token(self, token: str) -> Dict:
