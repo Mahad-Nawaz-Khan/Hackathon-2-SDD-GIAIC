@@ -5,7 +5,10 @@ Handles loading and saving tasks to/from JSON files.
 import json
 import os
 from typing import List
-from models.task import Task
+try:
+    from models.task import Task
+except ImportError:
+    from todo_app.models.task import Task
 
 
 def load_tasks(filename: str = "tasks.json") -> List[Task]:

@@ -58,9 +58,7 @@ def db_session(in_memory_db):
 def test_user(db_session: Session):
     """Create a test user."""
     user = User(
-        clerk_id="test_clerk_id_123",
-        email="test@example.com",
-        username="testuser",
+        clerk_user_id="test_clerk_id_123",
     )
     db_session.add(user)
     db_session.commit()

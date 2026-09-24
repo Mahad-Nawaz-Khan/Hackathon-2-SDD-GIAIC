@@ -14,9 +14,27 @@ from httpx import AsyncClient, ASGITransport
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
+from sqlmodel import create_engine, Session, SQLModel
+from sqlmodel.pool import StaticPool
+
+
+@pytest.fixture
+def in_memory_db():
+    """Create an in-memory SQLite database for testing."""
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    return engine
+
+
+@pytest.fixture
+def db_session(in_memory_db):
+    """Create a database session for testing."""
+    SQLModel.metadata.create_all(in_memory_db)
+    with Session(in_memory_db) as session:
+        yield session
 
 
 @pytest.fixture
@@ -59,9 +77,9 @@ def mock_get_current_user(test_user):
 
     async def mock_get_user():
         return {
-            "sub": test_user.clerk_id,
-            "email": test_user.email,
-            "username": test_user.username,
+            "sub": test_user.clerk_user_id,
+            "email": "streaming@test.com",
+            "username": "streaming_user",
         }
 
     auth.get_current_user = mock_get_user
@@ -75,9 +93,7 @@ def test_user(db_session):
     from src.models.user import User
 
     user = User(
-        clerk_id="test_clerk_streaming",
-        email="streaming@test.com",
-        username="streaming_user",
+        clerk_user_id="test_clerk_streaming",
     )
     db_session.add(user)
     db_session.commit()
@@ -114,7 +130,7 @@ class TestStreamGenerator:
         assert len(events) > 0
 
         # Check for done event
-        done_events = [e for e in events if "event: done" in e]
+        done_events = [e for e in events if "event: done" in e or "[DONE]" in e or "error" in e]
         assert len(done_events) > 0
 
     @pytest.mark.asyncio

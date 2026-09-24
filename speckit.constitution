@@ -1,0 +1,29 @@
+# Todo Monorepo Constitution
+
+## Core Principles
+
+### I. Spec-First (NON-NEGOTIABLE)
+No agent or engineer may write or modify code without an approved specification, architectural plan, and task list. All implementations must trace directly back to functional specifications.
+
+### II. Test-Driven Verification
+Every phase and component must include automated tests:
+- Python backend services must achieve comprehensive pytest coverage.
+- Next.js frontend applications must be strictly type-checked (`tsc --noEmit`) and build without warnings or errors (`npm run build`).
+
+### III. Security and Confidentiality
+- Never commit, inspect, or display `.env` files. Only public `.env.example` templates may be present.
+- All user-specific operations must enforce tenant isolation (e.g. `user_id` / `clerk_user_id` filtering).
+- Input validation and rate-limiting are mandatory on public endpoints.
+
+### IV. Incremental Architecture Evolution
+Each phase builds cleanly upon the foundations of the previous phase:
+- Phase 1: Pure in-memory core logic & CLI.
+- Phase 2: Full-stack persistence, REST API, authentication, and web UI.
+- Phase 3: Conversational intelligence, Model Context Protocol (MCP), and streaming agents.
+- Phase 4: Containerization and local orchestration (Docker, Helm, Minikube).
+- Phase 5: Cloud-native event-driven scale (Dapr Pub/Sub, State Store, Kafka, Redis, K8s).
+
+### V. Clean Boundaries and Modularity
+- Decouple business logic from external frameworks.
+- Abstract infrastructure dependencies (Kafka, Redis) behind clean protocols (Dapr, MCP).
+- Maintain deterministic error handling and consistent API schemas.

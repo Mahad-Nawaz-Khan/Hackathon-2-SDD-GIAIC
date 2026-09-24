@@ -3,7 +3,14 @@
 Console TODO Application
 A simple command-line based task management application.
 """
+import os
 import sys
+
+# Ensure the todo_app directory is in sys.path for robust imports from any working directory
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+
 from core.tasks import add_task, view_tasks, update_task, delete_task, find_task_by_id, toggle_task_completion
 from core.persistence import load_tasks, save_tasks
 from ui.menu import (

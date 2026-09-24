@@ -374,6 +374,27 @@ class ChatService {
   cancelRequest(): void {
     // This is handled by the AbortController returned by sendMessageStream
   }
+
+  /**
+   * Format message response with HTML line breaks
+   */
+  formatResponse(response: string): string {
+    return response.replace(/\n/g, '<br>');
+  }
+
+  /**
+   * Extract operation type from response
+   */
+  getOperationType(response: ChatResponse): string | undefined {
+    return response.operation_performed?.type;
+  }
+
+  /**
+   * Check if operation was performed successfully
+   */
+  isOperationSuccessful(response: ChatResponse): boolean {
+    return Boolean(response.operation_performed);
+  }
 }
 
 // Singleton instance

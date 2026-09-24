@@ -62,19 +62,18 @@ def get_current_user_info(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found"
-        )
+    email = getattr(user, "email", None) or current_user.get("email", "user@example.com")
+    first_name = user.first_name if isinstance(getattr(user, "first_name", None), str) else ""
+    last_name = user.last_name if isinstance(getattr(user, "last_name", None), str) else ""
+    timezone = user.timezone if isinstance(getattr(user, "timezone", None), str) else "UTC"
 
     return UserResponse(
         id=user.id,
         clerk_user_id=user.clerk_user_id,
-        email=user.email,
-        first_name=user.first_name or "",
-        last_name=user.last_name or "",
-        timezone=user.timezone or "UTC"
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        timezone=timezone
     )
 
 

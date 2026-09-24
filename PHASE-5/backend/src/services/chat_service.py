@@ -64,8 +64,8 @@ class ChatService:
             # Update task patterns
             IntentTypeEnum.UPDATE_TASK: [
                 r'\b(update|change|edit|modify)\s+(the\s+)?task\s*(.+)',
-                r'\b(mark|set|change)\s+(the\s+)?task\s*\d*\s+as\s+(completed|done|finished)',
-                r'\b(mark|set|change)\s+task\s*\d+\s+as\s+(completed|done|finished)',
+                r'\b(mark|set|change)\s+(the\s+)?task\s*\d*\s+(as\s+)?(complete|completed|done|finished)',
+                r'\b(mark|set|change)\s+task\s*\d+\s+(as\s+)?(complete|completed|done|finished)',
                 r'\b(complete|finish|done)\s+(the\s+)?task\s*\d*',
             ],
             # Delete task patterns

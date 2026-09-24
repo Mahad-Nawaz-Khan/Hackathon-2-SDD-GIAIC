@@ -305,7 +305,7 @@ def delete_task(task_id: int):
             return {
                 "success": False,
                 "error": "Task not found",
-                "message": "Could not find the task to delete."
+                "message": "Task not found. Could not find the task to delete."
             }
 
         # Delete task
@@ -484,7 +484,7 @@ def get_task(task_id: int):
             return {
                 "success": False,
                 "error": "Task not found",
-                "message": "Could not find the specified task."
+                "message": "Task not found. Could not find the specified task."
             }
 
         return {

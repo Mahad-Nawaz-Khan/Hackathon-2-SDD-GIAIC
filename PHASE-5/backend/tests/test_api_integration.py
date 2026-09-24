@@ -271,6 +271,7 @@ def test_get_current_user_info_endpoint(client, mock_session):
     mock_user.email = "test@example.com"
     mock_user.first_name = "Test"
     mock_user.last_name = "User"
+    mock_user.timezone = "UTC"
 
     # Mock the session behavior
     mock_exec_result = MagicMock()

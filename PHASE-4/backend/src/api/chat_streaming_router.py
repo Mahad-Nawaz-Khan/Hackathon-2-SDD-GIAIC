@@ -127,17 +127,22 @@ async def _stream_response_generator(
                     }
                 }
                 yield f"data: {json.dumps(final_data)}\n\n"
-                yield f"data: [DONE]\n\n"
+                yield "event: done\ndata: {}\n\n"
+                yield "data: [DONE]\n\n"
                 return
 
             elif event["type"] == "error":
                 # Error occurred
                 yield f"data: {json.dumps({'type': 'error', 'content': event.get('content', 'Unknown error')})}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                yield "data: [DONE]\n\n"
                 return
 
     except Exception as e:
         logger.exception(f"Error in stream generator: {str(e)}")
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+        yield "event: done\ndata: {}\n\n"
+        yield "data: [DONE]\n\n"
 
 
 @router.get("/stream")

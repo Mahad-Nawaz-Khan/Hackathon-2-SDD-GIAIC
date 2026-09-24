@@ -1319,7 +1319,7 @@ class AgentService:
             }
         finally:
             _clear_tool_context()
-
+        
     def _extract_operations(self, result) -> Optional[Dict[str, Any]]:
         """Extract information about operations performed from the agent result."""
         # First check if any tool marked an operation as performed
@@ -1377,7 +1377,7 @@ class AgentService:
             ],
             IntentTypeEnum.UPDATE_TASK: [
                 r'\b(update|change|edit|modify)\s+(the\s+)?task',
-                r'\b(mark|set|change)\s+(the\s+)?task\s*\d*\s+as\s+(completed|done|finished)',
+                r'\b(mark|set|change)\s+(the\s+)?task\s*\d*\s+(as\s+)?(complete|completed|done|finished)',
                 r'\b(complete|finish|done)\s+(the\s+)?task\s*\d*',
             ],
             IntentTypeEnum.DELETE_TASK: [

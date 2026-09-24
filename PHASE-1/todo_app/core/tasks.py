@@ -3,7 +3,10 @@ Core task management functions for the Console TODO Application
 Implements add, view, update, delete, and toggle completion operations.
 """
 from typing import List, Optional
-from models.task import Task
+try:
+    from models.task import Task
+except ImportError:
+    from todo_app.models.task import Task
 
 
 def add_task(tasks: List[Task], title: str, description: str = "") -> Task:

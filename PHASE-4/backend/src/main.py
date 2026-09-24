@@ -136,7 +136,7 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "TODO API", "version": "1.0.0"}
+    return {"status": "healthy"}
 
 
 @app.get("/health/detailed")
