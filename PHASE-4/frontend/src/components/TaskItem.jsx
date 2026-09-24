@@ -184,8 +184,9 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-white/80">Priority</label>
+              <label htmlFor={`edit-priority-${task.id}`} className="block text-sm font-medium text-white/80">Priority</label>
               <select
+                id={`edit-priority-${task.id}`}
                 value={editPriority}
                 onChange={(e) => setEditPriority(e.target.value)}
                 className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
@@ -197,8 +198,9 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white/80">Due Date</label>
+              <label htmlFor={`edit-due-date-${task.id}`} className="block text-sm font-medium text-white/80">Due Date</label>
               <input
+                id={`edit-due-date-${task.id}`}
                 type="date"
                 value={editDueDate}
                 onChange={(e) => setEditDueDate(e.target.value)}
@@ -208,8 +210,9 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-white/80">Recurrence</label>
+            <label htmlFor={`edit-recurrence-${task.id}`} className="block text-sm font-medium text-white/80">Recurrence</label>
             <select
+              id={`edit-recurrence-${task.id}`}
               value={editRecurrenceRule}
               onChange={(e) => setEditRecurrenceRule(e.target.value)}
               className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
@@ -222,7 +225,7 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-white/80">Tags</label>
+            <span className="block text-sm font-medium text-white/80">Tags</span>
             <TagSelector
               selectedTags={editTags}
               onTagsChange={setEditTags}

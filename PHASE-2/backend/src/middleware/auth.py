@@ -1,6 +1,8 @@
 from fastapi import HTTPException, Request
 from fastapi.security import HTTPBearer
 import os
+import base64
+import json
 from typing import Dict, Any
 from dotenv import load_dotenv
 import httpx
@@ -28,8 +30,15 @@ class ClerkAuthMiddleware:
         self.audience_override = os.getenv("CLERK_JWT_AUDIENCE")
 
     def _get_token_claims(self, token: str) -> Dict[str, Any]:
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        payload_b64 = parts[1]
+        rem = len(payload_b64) % 4
+        if rem > 0:
+            payload_b64 += "=" * (4 - rem)
         try:
-            return jwt.get_unverified_claims(token)
+            return json.loads(base64.urlsafe_b64decode(payload_b64))
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -131,6 +140,7 @@ class ClerkAuthMiddleware:
             decode_kwargs = {
                 "algorithms": [ALGORITHMS.RS256],
                 "issuer": issuer,
+                "options": {"verify_signature": True},
             }
             if audience is not None:
                 decode_kwargs["audience"] = audience

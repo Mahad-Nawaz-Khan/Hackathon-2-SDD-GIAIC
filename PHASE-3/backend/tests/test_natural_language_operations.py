@@ -79,7 +79,7 @@ class ChatTester:
         """Test T041: Natural language task creation"""
         print("\n=== Test T041: Create Task ===")
         result = await self.send_message("Add a task to buy groceries")
-        print(f"User: Add a task to buy groceries")
+        print("User: Add a task to buy groceries")
         print(f"AI: {result.get('message', {}).get('content', 'No response')}")
         print(f"Operation: {result.get('operation_performed')}")
         success = "created" in result.get('message', {}).get('content', '').lower()
@@ -90,7 +90,7 @@ class ChatTester:
         """Test T042: Natural language task listing"""
         print("\n=== Test T042: List Tasks ===")
         result = await self.send_message("Show me all my tasks")
-        print(f"User: Show me all my tasks")
+        print("User: Show me all my tasks")
         print(f"AI: {result.get('message', {}).get('content', 'No response')}")
         print(f"Operation: {result.get('operation_performed')}")
         success = "task" in result.get('message', {}).get('content', '').lower()
@@ -117,7 +117,7 @@ class ChatTester:
 
         # Use a generic completion command
         result = await self.send_message("Complete task 1")
-        print(f"User: Complete task 1")
+        print("User: Complete task 1")
         print(f"AI: {result.get('message', {}).get('content', 'No response')}")
         print(f"Operation: {result.get('operation_performed')}")
         success = "complete" in result.get('message', {}).get('content', '').lower() or "couldn't find" in result.get('message', {}).get('content', '').lower()
@@ -128,7 +128,7 @@ class ChatTester:
         """Test T044: Natural language task deletion"""
         print("\n=== Test T044: Delete Task ===")
         result = await self.send_message("Delete the meeting task")
-        print(f"User: Delete the meeting task")
+        print("User: Delete the meeting task")
         print(f"AI: {result.get('message', {}).get('content', 'No response')}")
         print(f"Operation: {result.get('operation_performed')}")
         success = "delete" in result.get('message', {}).get('content', '').lower() or "couldn't find" in result.get('message', {}).get('content', '').lower()
@@ -139,7 +139,7 @@ class ChatTester:
         """Test listing today's tasks"""
         print("\n=== Test: Today's Tasks ===")
         result = await self.send_message("What do I have today?")
-        print(f"User: What do I have today?")
+        print("User: What do I have today?")
         print(f"AI: {result.get('message', {}).get('content', 'No response')}")
         print(f"Operation: {result.get('operation_performed')}")
         success = "task" in result.get('message', {}).get('content', '').lower()
@@ -150,7 +150,7 @@ class ChatTester:
         """Test searching tasks"""
         print("\n=== Test: Search Tasks ===")
         result = await self.send_message("Search for grocery tasks")
-        print(f"User: Search for grocery tasks")
+        print("User: Search for grocery tasks")
         print(f"AI: {result.get('message', {}).get('content', 'No response')}")
         print(f"Operation: {result.get('operation_performed')}")
         success = "found" in result.get('message', {}).get('content', '').lower() or "couldn't find" in result.get('message', {}).get('content', '').lower()

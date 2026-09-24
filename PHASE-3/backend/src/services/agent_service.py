@@ -199,7 +199,7 @@ def agent_create_task(
             if parsed_recurrence:
                 result += f" Recurs: {parsed_recurrence}"
             if tag_ids:
-                result += f" Tags added."
+                result += " Tags added."
             return result
 
     except Exception as e:
@@ -217,7 +217,7 @@ def _parse_relative_date(date_str: str) -> Optional[datetime]:
     # Try YYYY-MM-DD format first
     try:
         return datetime.fromisoformat(date_str)
-    except:
+    except (ValueError, TypeError):
         pass
 
     from datetime import timedelta
@@ -482,10 +482,6 @@ def agent_update_task(task_id: int, title: str = "", description: str = "", prio
     except Exception as e:
         logger.error(f"Error updating task: {str(e)}")
         return f"Sorry, I couldn't update that task. Error: {str(e)}"
-        return f"✓ Task '{updated_task.title}' updated successfully!"
-    except Exception as e:
-        logger.error(f"Error updating task: {str(e)}")
-        return f"Sorry, I couldn't update that task. Error: {str(e)}"
 
 
 def agent_toggle_task(task_id: int) -> str:
@@ -620,7 +616,7 @@ def agent_delete_by_search(search_term: str) -> str:
             else:
                 return f"✓ Deleted {deleted_count} tasks: {', '.join(deleted_titles)}"
         else:
-            return f"Found tasks but couldn't delete them. Please try again."
+            return "Found tasks but couldn't delete them. Please try again."
 
     except Exception as e:
         logger.error(f"Error deleting tasks by search: {str(e)}")
@@ -871,7 +867,7 @@ def agent_complete_by_search(search_term: str) -> str:
         )
 
         if not tasks:
-            return f"No incomplete tasks found."
+            return "No incomplete tasks found."
 
         # Return the list so LLM can decide
         result_lines = [f"Incomplete tasks ({len(tasks)}):"]
@@ -920,7 +916,7 @@ def agent_uncomplete_by_search(search_term: str) -> str:
         )
 
         if not tasks:
-            return f"No completed tasks found."
+            return "No completed tasks found."
 
         # Return the list so LLM can decide
         result_lines = [f"Completed tasks ({len(tasks)}):"]

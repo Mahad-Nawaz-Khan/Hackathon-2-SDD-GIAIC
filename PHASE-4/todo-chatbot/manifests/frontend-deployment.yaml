@@ -17,6 +17,7 @@ spec:
         app: todo-chatbot
         component: frontend
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         fsGroup: 1000

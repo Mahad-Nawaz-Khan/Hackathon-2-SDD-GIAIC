@@ -72,7 +72,7 @@ async def _stream_response_generator(
         # Process with streaming agent (AI is required)
         if not agent_service.is_available():
             yield f"data: {json.dumps({'type': 'error', 'content': 'AI service is not available. Please ensure GEMINI_API_KEY is configured.'})}\n\n"
-            yield f"data: [DONE]\n\n"
+            yield "data: [DONE]\n\n"
             return
 
         full_response_content = ""

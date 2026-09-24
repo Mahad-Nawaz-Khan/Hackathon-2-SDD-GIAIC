@@ -354,8 +354,9 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
 
       <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label className="block text-sm font-medium text-white/80">Status</label>
+          <label htmlFor="status-filter" className="block text-sm font-medium text-white/80">Status</label>
           <select
+            id="status-filter"
             value={filters.completed === null ? '' : filters.completed.toString()}
             onChange={(e) => handleFilterChange('completed', e.target.value === '' ? null : e.target.value === 'true')}
             className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
@@ -367,8 +368,9 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-white/80">Priority</label>
+          <label htmlFor="priority-filter" className="block text-sm font-medium text-white/80">Priority</label>
           <select
+            id="priority-filter"
             value={filters.priority}
             onChange={(e) => handleFilterChange('priority', e.target.value)}
             className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
@@ -381,8 +383,9 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-white/80">Sort By</label>
+          <label htmlFor="sort-by" className="block text-sm font-medium text-white/80">Sort By</label>
           <select
+            id="sort-by"
             value={sortConfig.sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
             className="mt-1 w-full cursor-pointer rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 hover:bg-white/15"
@@ -395,8 +398,9 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-white/80">Search</label>
+          <label htmlFor="search-input" className="block text-sm font-medium text-white/80">Search</label>
           <input
+            id="search-input"
             type="text"
             placeholder="Search tasks or tags..."
             value={searchInput}

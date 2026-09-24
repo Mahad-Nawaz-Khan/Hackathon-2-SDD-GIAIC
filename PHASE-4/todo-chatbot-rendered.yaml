@@ -17,6 +17,7 @@ spec:
         app: todo-chatbot
         component: backend
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         fsGroup: 1000
@@ -34,17 +35,29 @@ spec:
             - name: CLERK_JWKS_URL
               value: "https://civil-corgi-51.clerk.accounts.dev/.well-known/jwks.json"
             - name: CLERK_SECRET_KEY
-              value: "sk_test_ktJsw3Ab23FsuUTqHgcAidFPma47Br1BPMGLmEChuF"
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: clerk-secret-key
             - name: CORS_ORIGINS
               value: "*"  # Allow all origins for local development
             - name: DATABASE_URL
-              value: "postgresql://neondb_owner:npg_GCY2y8SAlOqF@ep-round-field-a1sjfms9-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: database-url
             - name: GEMINI_API_KEY
-              value: "AIzaSyBYYNex3-T_yOXSDBgrPv1fz14SBFFOliE"
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: gemini-api-key
             - name: GEMINI_MODEL
               value: "gemini-2.5-flash-lite"
             - name: Z_AI_API_KEY
-              value: "395d0491851447758aca123043d35b12.4PfFWezLEmGSPbd6"
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: z-ai-api-key
             - name: Z_AI_MODEL
               value: "glm-4.5-air"
             - name: PORT
@@ -110,6 +123,7 @@ spec:
         app: todo-chatbot
         component: frontend
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         fsGroup: 1000

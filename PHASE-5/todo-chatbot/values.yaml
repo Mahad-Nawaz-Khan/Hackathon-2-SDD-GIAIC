@@ -26,13 +26,12 @@ backend:
   env:
     CLERK_ISSUER: "https://civil-corgi-51.clerk.accounts.dev"
     CLERK_JWKS_URL: "https://civil-corgi-51.clerk.accounts.dev/.well-known/jwks.json"
-    CLERK_SECRET_KEY: "sk_test_ktJsw3Ab23FsuUTqHgcAidFPma47Br1BPMGLmEChuF"
+    CLERK_SECRET_KEY: "placeholder-clerk-secret-key"
     CORS_ORIGINS: "http://localhost:3000,http://todo-chatbot.local"
-    DATABASE_URL: "postgresql://neondb_owner:npg_GCY2y8SAlOqF@ep-round-field-a1sjfms9-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-    GEMINI_API_KEY: "AIzaSyBYYNex3-T_yOXSDBgrPv1fz14SBFFOliE"
+    DATABASE_URL: "postgresql://todo_user:todo_password@localhost:5432/todo_db"
+    GEMINI_API_KEY: "placeholder-gemini-api-key"
     GEMINI_MODEL: "gemini-2.5-flash-lite"
-    Z_AI_API_KEY: "395d0491851447758aca123043d35b12.4PfFWezLEmGSPbd6"
-    Z_AI_MODEL: "glm-4.5-air"
+    Z_AI_API_KEY: "placeholder-z-ai-api-key"
     PORT: "8000"
 
   service:

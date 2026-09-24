@@ -33,7 +33,7 @@ class AuthService:
         clerk_user_id = clerk_payload.get("sub")  # Clerk's standard user ID field
 
         if not clerk_user_id:
-            security_logger.warning(f"Invalid Clerk payload: missing user ID")
+            security_logger.warning("Invalid Clerk payload: missing user ID")
             raise HTTPException(
                 status_code=400,
                 detail="Invalid Clerk payload: missing user ID"
@@ -62,7 +62,7 @@ class AuthService:
         """
         user_id = clerk_payload.get("sub")
         if not user_id:
-            security_logger.warning(f"Invalid token: missing user ID")
+            security_logger.warning("Invalid token: missing user ID")
             raise HTTPException(
                 status_code=401,
                 detail="Invalid token: missing user ID"

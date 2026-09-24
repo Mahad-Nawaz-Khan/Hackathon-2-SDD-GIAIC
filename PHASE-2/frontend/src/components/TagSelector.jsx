@@ -157,7 +157,7 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
 
       {/* Selected tags display */}
       <div className="mb-2">
-        <label className="block text-sm font-medium text-white/80">Selected tags</label>
+        <span className="block text-sm font-medium text-white/80">Selected tags</span>
         <div className="flex flex-wrap gap-2">
           {selectedTags.map(tagId => (
             <span
@@ -182,7 +182,7 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
 
       {/* Available tags */}
       <div className="mb-2">
-        <label className="block text-sm font-medium text-white/80">Available tags</label>
+        <span className="block text-sm font-medium text-white/80">Available tags</span>
         <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
           {allTags.map(tag => (
             <button

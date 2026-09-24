@@ -108,7 +108,7 @@ class ChatService:
                     )
 
         # Default to unknown if no pattern matches
-        logger.info(f"No intent detected, returning UNKNOWN")
+        logger.info("No intent detected, returning UNKNOWN")
         return IntentDetectionResult(
             intent=IntentTypeEnum.UNKNOWN,
             confidence=0.0,
@@ -158,8 +158,8 @@ class ChatService:
             if re.search(pattern, message_lower):
                 try:
                     parameters['due_date'] = date_func()
-                except:
-                    pass
+                except (ValueError, TypeError, AttributeError) as e:
+                    logger.debug(f"Failed to calculate relative date: {e}")
                 break
 
         # Extract task title based on intent

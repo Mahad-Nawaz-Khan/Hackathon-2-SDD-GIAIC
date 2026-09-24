@@ -162,7 +162,7 @@ export const TaskForm = ({ onTaskCreated }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-white/80">Tags</label>
+            <span className="block text-sm font-medium text-white/80">Tags</span>
             <TagSelector
               selectedTags={selectedTags}
               onTagsChange={setSelectedTags}

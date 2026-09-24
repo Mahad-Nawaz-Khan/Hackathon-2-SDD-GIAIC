@@ -32,6 +32,10 @@ def in_memory_db():
 @pytest.fixture
 def db_session(in_memory_db):
     """Create a database session for testing."""
+    from src.models.user import User
+    from src.models.task import Task
+    from src.models.tag import Tag
+    from src.models.chat_models import ChatInteraction, ChatMessage, OperationRequest
     SQLModel.metadata.create_all(in_memory_db)
     with Session(in_memory_db) as session:
         yield session

@@ -8,6 +8,7 @@ task management tools to AI agents using the official MCP Python SDK.
 from mcp.server.fastmcp import FastMCP
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -570,7 +571,6 @@ def get_tasks_summary() -> str:
         if t.due_date and t.due_date.date() < today and not t.completed:
             overdue += 1
 
-    import json
     return json.dumps({
         "total": total,
         "completed": completed,
