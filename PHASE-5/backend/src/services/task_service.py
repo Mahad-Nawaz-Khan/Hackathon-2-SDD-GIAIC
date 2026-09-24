@@ -1,24 +1,78 @@
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Union, Set
+import asyncio
+import logging
+import re
+import uuid
+from fastapi import HTTPException
+from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, and_, or_, case
-from typing import List, Optional, Union
+
 from ..models.task import Task
 from ..models.tag import Tag
 from ..models.user import User
 from ..models.task_tag import TaskTagLink
-from fastapi import HTTPException
 from ..schemas.task import TaskCreateRequest, TaskUpdateRequest
-from pydantic import BaseModel
-from datetime import datetime, timedelta
-from sqlalchemy.orm import selectinload
-from sqlalchemy import func
-import re
-import logging
-import uuid
-
 
 ERROR_RECURRING_DUE_DATE = "For recurring tasks, due date must be today"
 ERROR_TASK_ID_POSITIVE = "Task ID must be positive"
 ERROR_USER_ID_POSITIVE = "User ID must be positive"
 ERROR_TASK_NOT_FOUND = "Task not found or access denied"
+UTC_OFFSET = "+00:00"
+
+_background_tasks: Set[asyncio.Task] = set()
+
+
+def _run_background_task(coro):
+    """Run an async coroutine in the background safely retaining a strong reference."""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+        task = asyncio.create_task(coro)
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+    else:
+        loop.run_until_complete(coro)
+
+
+def _parse_iso_datetime(dt_val: Union[str, datetime, None]) -> Optional[datetime]:
+    if not dt_val:
+        return None
+    if isinstance(dt_val, str):
+        try:
+            return datetime.fromisoformat(dt_val.replace("Z", UTC_OFFSET))
+        except ValueError:
+            return None
+    return dt_val
+
+
+def _validate_task_reminder(task_data: TaskCreateRequest, due_date: Optional[datetime]):
+    if not (hasattr(task_data, "reminder_time") and task_data.reminder_time):
+        return
+    reminder_dt = _parse_iso_datetime(task_data.reminder_time)
+    if not reminder_dt:
+        return
+    if reminder_dt < datetime.now(reminder_dt.tzinfo):
+        raise ValueError("Reminder time must be in the future")
+    if due_date and reminder_dt > due_date:
+        raise ValueError("Reminder time must be before due date")
+
+
+def _apply_task_field_updates(task: Task, update_data: dict):
+    for field, value in update_data.items():
+        if hasattr(task, field) and field != "id":
+            if field in ("priority", "recurrence_rule") and hasattr(value, "value"):
+                setattr(task, field, str(value.value))
+            elif field == "priority" and isinstance(value, str):
+                setattr(task, field, value)
+            else:
+                setattr(task, field, value)
 
 
 class TaskService:
@@ -62,35 +116,8 @@ class TaskService:
             if len(task_data.title.strip()) > 255:
                 raise ValueError("Task title must be less than 255 characters")
 
-            # Validate reminder_time is in the future
-            if hasattr(task_data, 'reminder_time') and task_data.reminder_time:
-                if isinstance(task_data.reminder_time, str):
-                    reminder_dt = datetime.fromisoformat(task_data.reminder_time.replace('Z', '+00:00'))
-                else:
-                    reminder_dt = task_data.reminder_time
-
-                if reminder_dt < datetime.now(reminder_dt.tzinfo):
-                    raise ValueError("Reminder time must be in the future")
-
-            # Validate reminder_time is before due_date when both are set
-            if hasattr(task_data, 'reminder_time') and task_data.reminder_time and due_date:
-                if isinstance(task_data.reminder_time, str):
-                    reminder_dt = datetime.fromisoformat(task_data.reminder_time.replace('Z', '+00:00'))
-                else:
-                    reminder_dt = task_data.reminder_time
-
-                if reminder_dt > due_date:
-                    raise ValueError("Reminder time must be before due date")
-
-            # Handle due_date conversion if provided as string
-            due_date = task_data.due_date
-            if due_date and isinstance(due_date, str):
-                try:
-                    from datetime import datetime
-                    due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
-                except ValueError:
-                    # If parsing fails, set to None
-                    due_date = None
+            due_date = _parse_iso_datetime(task_data.due_date)
+            _validate_task_reminder(task_data, due_date)
 
             # Create task object
             tags: List[Tag] = []
@@ -118,7 +145,6 @@ class TaskService:
             if task.reminder_time:
                 try:
                     from .dapr_service import dapr_service
-                    import asyncio
 
                     async def schedule_reminder_async():
                         await dapr_service.schedule_reminder(
@@ -129,18 +155,7 @@ class TaskService:
                             due_date=task.due_date
                         )
 
-                    # Run in background - don't block the response
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-
-                    if loop.is_running():
-                        asyncio.create_task(schedule_reminder_async())
-                    else:
-                        loop.run_until_complete(schedule_reminder_async())
-
+                    _run_background_task(schedule_reminder_async())
                     logging.info(f"Scheduled reminder for task {task.id} at {task.reminder_time}")
                 except Exception as e:
                     # Log error but don't fail the task creation
@@ -346,23 +361,13 @@ class TaskService:
             # Track if reminder_time changed for rescheduling
             reminder_time_changed = "reminder_time" in update_data
             old_reminder_time = task.reminder_time
-            for field, value in update_data.items():
-                if hasattr(task, field) and field != "id":
-                    # Convert enum to string if it's a priority field
-                    if field == "priority" and hasattr(value, 'value'):
-                        setattr(task, field, str(value.value))
-                    elif field == "recurrence_rule" and hasattr(value, 'value'):
-                        setattr(task, field, str(value.value))
-                    elif field == "priority" and isinstance(value, str):
-                        setattr(task, field, value)
-                    else:
-                        setattr(task, field, value)
+            _apply_task_field_updates(task, update_data)
 
             if tag_ids is not None:
                 task.tags = self._get_tags_for_user(tag_ids, user_id, db_session)
 
             # Update the updated_at timestamp
-            task.updated_at = datetime.utcnow()
+            task.updated_at = datetime.now(timezone.utc)
 
             db_session.add(task)
             db_session.commit()
@@ -372,7 +377,6 @@ class TaskService:
             if reminder_time_changed:
                 try:
                     from .dapr_service import dapr_service
-                    import asyncio
 
                     async def reschedule_reminder_async():
                         # Cancel old reminder if existed
@@ -392,17 +396,7 @@ class TaskService:
                         else:
                             logging.info(f"Cancelled reminder for task {task.id}")
 
-                    # Run in background - don't block the response
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-
-                    if loop.is_running():
-                        asyncio.create_task(reschedule_reminder_async())
-                    else:
-                        loop.run_until_complete(reschedule_reminder_async())
+                    _run_background_task(reschedule_reminder_async())
 
                 except Exception as e:
                     # Log error but don't fail the task update
@@ -448,22 +442,11 @@ class TaskService:
             if had_reminder:
                 try:
                     from .dapr_service import dapr_service
-                    import asyncio
 
                     async def cancel_reminder_async():
                         await dapr_service.cancel_reminder(task_id)
 
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-
-                    if loop.is_running():
-                        asyncio.create_task(cancel_reminder_async())
-                    else:
-                        loop.run_until_complete(cancel_reminder_async())
-
+                    _run_background_task(cancel_reminder_async())
                     logging.info(f"Cancelled reminder for deleted task {task_id}")
                 except Exception as e:
                     # Log error but don't fail the delete
@@ -511,7 +494,7 @@ class TaskService:
 
             # Toggle the completed status
             task.completed = not task.completed
-            task.updated_at = datetime.utcnow()
+            task.updated_at = datetime.now(timezone.utc)
 
             db_session.add(task)
             db_session.commit()
@@ -521,22 +504,11 @@ class TaskService:
             if task.completed and task.reminder_time:
                 try:
                     from .dapr_service import dapr_service
-                    import asyncio
 
                     async def cancel_reminder_async():
                         await dapr_service.cancel_reminder(task_id)
 
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-
-                    if loop.is_running():
-                        asyncio.create_task(cancel_reminder_async())
-                    else:
-                        loop.run_until_complete(cancel_reminder_async())
-
+                    _run_background_task(cancel_reminder_async())
                     logging.info(f"Cancelled reminder for completed task {task_id}")
                 except Exception as e:
                     # Log error but don't fail the toggle
@@ -552,7 +524,7 @@ class TaskService:
                     event_data = {
                         "event_type": "task.completed",
                         "event_id": str(uuid.uuid4()),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "task_id": task.id,
                         "user_id": task.user_id,
                         "task_data": {

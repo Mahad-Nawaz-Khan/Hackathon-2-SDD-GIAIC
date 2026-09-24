@@ -5,6 +5,21 @@ import PropTypes from 'prop-types';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
+const addTagIfNotExists = (prevTags, newTag) => {
+  if (prevTags.some((tag) => tag.id === newTag.id)) {
+    return prevTags;
+  }
+  return [...prevTags, newTag];
+};
+
+const updateTagInList = (prevTags, updatedTag) => {
+  return prevTags.map((tag) => (tag.id === updatedTag.id ? { ...tag, ...updatedTag } : tag));
+};
+
+const removeTagFromList = (prevTags, deletedTagId) => {
+  return prevTags.filter((tag) => tag.id !== deletedTagId);
+};
+
 const TagList = ({ onTagsFetched }) => {
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,33 +49,17 @@ const TagList = ({ onTagsFetched }) => {
       }
 
       if (detail.type === 'created' && detail.tag) {
-        const createdTag = detail.tag;
-        setTags((prev) => {
-          if (prev.some((tag) => tag.id === createdTag.id)) {
-            return prev;
-          }
-          return [...prev, createdTag];
-        });
+        setTags((prev) => addTagIfNotExists(prev, detail.tag));
       }
 
       if (detail.type === 'updated' && detail.tag) {
-        const updatedTag = detail.tag;
-        setTags((prev) => prev.map((tag) => {
-          if (tag.id !== updatedTag.id) {
-            return tag;
-          }
-          return {
-            ...tag,
-            ...updatedTag,
-          };
-        }));
+        setTags((prev) => updateTagInList(prev, detail.tag));
       }
 
       if (detail.type === 'deleted' && detail.tagId) {
-        const deletedTagId = detail.tagId;
-        setTags((prev) => prev.filter((tag) => tag.id !== deletedTagId));
+        setTags((prev) => removeTagFromList(prev, detail.tagId));
 
-        if (editingTagId === deletedTagId) {
+        if (editingTagId === detail.tagId) {
           setEditingTagId(null);
           setEditingTagName('');
         }
@@ -94,6 +93,7 @@ const TagList = ({ onTagsFetched }) => {
       setTags(tagsData || []);
     } catch (err) {
       // On error, just show empty state - don't throw error
+      console.warn("Failed to fetch tags, showing empty state:", err);
       setTags([]);
     } finally {
       setLoading(false);
@@ -346,10 +346,8 @@ const TagList = ({ onTagsFetched }) => {
   );
 };
 
-
 TagList.propTypes = {
   onTagsFetched: PropTypes.func,
-  onTagSelected: PropTypes.func,
 };
 
 export default TagList;

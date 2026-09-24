@@ -6,7 +6,7 @@ from ..models.user import User
 from fastapi import HTTPException
 from ..schemas.task import TaskCreateRequest, TaskUpdateRequest
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import selectinload
 import re
 import logging
@@ -79,7 +79,7 @@ class TaskService:
             # For recurring tasks, anchor the series to "today" (creation day).
             # This avoids immediate duplicate visibility and makes the schedule deterministic.
             if task_data.recurrence_rule:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 if due_date is not None and due_date.date() != now.date():
                     raise ValueError(ERROR_RECURRING_DUE_DATE)
                 if due_date is None:
@@ -116,6 +116,45 @@ class TaskService:
             db_session.rollback()
             raise HTTPException(status_code=500, detail="Failed to create task")
 
+    def _apply_task_filters(
+        self,
+        query,
+        completed: Optional[bool],
+        priority: Optional[str],
+        due_date_from: Optional[str],
+        due_date_to: Optional[str],
+        search: Optional[str],
+    ):
+        if completed is not None:
+            query = query.where(Task.completed == completed)
+
+        if priority is not None:
+            if priority not in ["LOW", "MEDIUM", "HIGH"]:
+                raise ValueError(f"Invalid priority value: {priority}")
+            query = query.where(Task.priority == priority)
+
+        if due_date_from is not None:
+            query = query.where(Task.due_date >= datetime.fromisoformat(due_date_from))
+
+        if due_date_to is not None:
+            query = query.where(Task.due_date <= datetime.fromisoformat(due_date_to))
+
+        if search is not None:
+            query = query.where(
+                Task.title.contains(search) | Task.description.contains(search)
+            )
+        return query
+
+    def _apply_task_sorting(self, query, sort_by: Optional[str], order: Optional[str]):
+        col_map = {
+            "created_at": Task.created_at,
+            "updated_at": Task.updated_at,
+            "due_date": Task.due_date,
+            "priority": Task.priority,
+        }
+        col = col_map.get(sort_by, Task.created_at)
+        return query.order_by(col.desc() if order == "desc" else col.asc())
+
     def get_tasks(
         self,
         user_id: int,
@@ -149,7 +188,7 @@ class TaskService:
 
             # Hide future recurring instances until their due date.
             # Only recurring children (parent_task_id is not null) become visible once due.
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             query = query.where(
                 or_(
                     Task.completed == True,
@@ -162,49 +201,8 @@ class TaskService:
                 )
             )
 
-            # Apply filters
-            if completed is not None:
-                query = query.where(Task.completed == completed)
-
-            if priority is not None:
-                if priority not in ["LOW", "MEDIUM", "HIGH"]:
-                    raise ValueError(f"Invalid priority value: {priority}")
-                query = query.where(Task.priority == priority)
-
-            if due_date_from is not None:
-                date_from = datetime.fromisoformat(due_date_from)
-                query = query.where(Task.due_date >= date_from)
-
-            if due_date_to is not None:
-                date_to = datetime.fromisoformat(due_date_to)
-                query = query.where(Task.due_date <= date_to)
-
-            if search is not None:
-                query = query.where(
-                    Task.title.contains(search) | Task.description.contains(search)
-                )
-
-            # Apply sorting
-            if sort_by == "created_at":
-                if order == "desc":
-                    query = query.order_by(Task.created_at.desc())
-                else:
-                    query = query.order_by(Task.created_at.asc())
-            elif sort_by == "updated_at":
-                if order == "desc":
-                    query = query.order_by(Task.updated_at.desc())
-                else:
-                    query = query.order_by(Task.updated_at.asc())
-            elif sort_by == "due_date":
-                if order == "desc":
-                    query = query.order_by(Task.due_date.desc())
-                else:
-                    query = query.order_by(Task.due_date.asc())
-            elif sort_by == "priority":
-                if order == "desc":
-                    query = query.order_by(Task.priority.desc())
-                else:
-                    query = query.order_by(Task.priority.asc())
+            query = self._apply_task_filters(query, completed, priority, due_date_from, due_date_to, search)
+            query = self._apply_task_sorting(query, sort_by, order)
 
             # Apply pagination
             query = query.offset(offset).limit(limit)
@@ -249,6 +247,30 @@ class TaskService:
             logging.error(f"Error getting task {task_id} for user {user_id}: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to retrieve task")
 
+    def _validate_recurrence_due_date(self, task: Task, update_data: dict) -> None:
+        if update_data.get("recurrence_rule") and not task.recurrence_rule:
+            now = datetime.now(timezone.utc)
+            if "due_date" in update_data:
+                due_date = update_data.get("due_date")
+                if due_date is not None and due_date.date() != now.date():
+                    raise ValueError(ERROR_RECURRING_DUE_DATE)
+            else:
+                update_data["due_date"] = now
+
+        if task.recurrence_rule and "due_date" in update_data:
+            now = datetime.now(timezone.utc)
+            due_date = update_data.get("due_date")
+            if due_date is not None and due_date.date() != now.date():
+                raise ValueError(ERROR_RECURRING_DUE_DATE)
+
+    def _apply_task_updates(self, task: Task, update_data: dict) -> None:
+        for field, value in update_data.items():
+            if hasattr(task, field) and field != "id":
+                if hasattr(value, "value"):
+                    setattr(task, field, str(value.value))
+                else:
+                    setattr(task, field, value)
+
     def update_task(
         self,
         task_id: int,
@@ -290,40 +312,14 @@ class TaskService:
                 else:
                     update_data["recurrence_rule"] = str(recurrence_value)
 
-            # If enabling recurrence, anchor due_date to today.
-            if update_data.get("recurrence_rule") and not task.recurrence_rule:
-                now = datetime.utcnow()
-                if "due_date" in update_data:
-                    due_date = update_data.get("due_date")
-                    if due_date is not None and due_date.date() != now.date():
-                        raise ValueError(ERROR_RECURRING_DUE_DATE)
-                else:
-                    update_data["due_date"] = now
-
-            # If already recurring and user attempts to change due_date, keep it anchored to today.
-            if task.recurrence_rule and "due_date" in update_data:
-                now = datetime.utcnow()
-                due_date = update_data.get("due_date")
-                if due_date is not None and due_date.date() != now.date():
-                    raise ValueError(ERROR_RECURRING_DUE_DATE)
-
-            for field, value in update_data.items():
-                if hasattr(task, field) and field != "id":
-                    # Convert enum to string if it's a priority field
-                    if field == "priority" and hasattr(value, 'value'):
-                        setattr(task, field, str(value.value))
-                    elif field == "recurrence_rule" and hasattr(value, 'value'):
-                        setattr(task, field, str(value.value))
-                    elif field == "priority" and isinstance(value, str):
-                        setattr(task, field, value)
-                    else:
-                        setattr(task, field, value)
+            self._validate_recurrence_due_date(task, update_data)
+            self._apply_task_updates(task, update_data)
 
             if tag_ids is not None:
                 task.tags = self._get_tags_for_user(tag_ids, user_id, db_session)
 
             # Update the updated_at timestamp
-            task.updated_at = datetime.utcnow()
+            task.updated_at = datetime.now(timezone.utc)
 
             db_session.add(task)
             db_session.commit()
@@ -419,7 +415,7 @@ class TaskService:
             # If marking as complete and task has recurrence
             if not task.completed and task.recurrence_rule:
                 task.completed = True
-                task.updated_at = datetime.utcnow()
+                task.updated_at = datetime.now(timezone.utc)
                 new_task = self._handle_recurrence(task, db_session)
                 db_session.refresh(task)
                 logging.info(
@@ -429,7 +425,7 @@ class TaskService:
             else:
                 # Standard toggle
                 task.completed = not task.completed
-                task.updated_at = datetime.utcnow()
+                task.updated_at = datetime.now(timezone.utc)
 
                 db_session.add(task)
                 db_session.commit()
@@ -452,7 +448,7 @@ class TaskService:
         """
         series_root_id = task.parent_task_id or task.id
 
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
 
         # Determine when the next instance should become visible.
         # - If the task was completed before its scheduled rollover, the next instance
@@ -462,6 +458,8 @@ class TaskService:
         scheduled_next = None
         if task.due_date:
             scheduled_next = self._calculate_next_due_date(task.due_date, task.recurrence_rule)
+            if scheduled_next and scheduled_next.tzinfo is None:
+                scheduled_next = scheduled_next.replace(tzinfo=timezone.utc)
 
         if scheduled_next and completed_at < scheduled_next:
             next_due_date = scheduled_next

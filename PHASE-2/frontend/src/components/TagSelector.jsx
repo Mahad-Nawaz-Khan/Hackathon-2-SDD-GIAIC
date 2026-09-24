@@ -5,6 +5,21 @@ import PropTypes from 'prop-types';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
+const addTagIfNotExists = (prevTags, newTag) => {
+  if (prevTags.some((tag) => tag.id === newTag.id)) {
+    return prevTags;
+  }
+  return [...prevTags, newTag];
+};
+
+const updateTagInList = (prevTags, updatedTag) => {
+  return prevTags.map((tag) => (tag.id === updatedTag.id ? { ...tag, ...updatedTag } : tag));
+};
+
+const removeTagFromList = (prevTags, deletedTagId) => {
+  return prevTags.filter((tag) => tag.id !== deletedTagId);
+};
+
 const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
   const [allTags, setAllTags] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,34 +38,18 @@ const TagSelector = ({ selectedTags = [], onTagsChange, taskId = null }) => {
       }
 
       if (detail.type === 'created' && detail.tag) {
-        const createdTag = detail.tag;
-        setAllTags((prev) => {
-          if (prev.some((tag) => tag.id === createdTag.id)) {
-            return prev;
-          }
-          return [...prev, createdTag];
-        });
+        setAllTags((prev) => addTagIfNotExists(prev, detail.tag));
       }
 
       if (detail.type === 'updated' && detail.tag) {
-        const updatedTag = detail.tag;
-        setAllTags((prev) => prev.map((tag) => {
-          if (tag.id !== updatedTag.id) {
-            return tag;
-          }
-          return {
-            ...tag,
-            ...updatedTag,
-          };
-        }));
+        setAllTags((prev) => updateTagInList(prev, detail.tag));
       }
 
       if (detail.type === 'deleted' && detail.tagId) {
-        const deletedTagId = detail.tagId;
-        setAllTags((prev) => prev.filter((tag) => tag.id !== deletedTagId));
+        setAllTags((prev) => removeTagFromList(prev, detail.tagId));
 
-        if (selectedTags.includes(deletedTagId)) {
-          onTagsChange(selectedTags.filter((id) => id !== deletedTagId));
+        if (selectedTags.includes(detail.tagId)) {
+          onTagsChange(selectedTags.filter((id) => id !== detail.tagId));
         }
       }
     };

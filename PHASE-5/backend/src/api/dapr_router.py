@@ -97,11 +97,10 @@ async def handle_task_completed(request: Request) -> Dict[str, Any]:
     """
     try:
         event_data = await request.json()
-        logger.info(f"Received task.completed event", extra={"event": event_data})
+        logger.info("Received task.completed event", extra={"event": event_data})
 
         # Extract task data
         task_id = event_data.get("task_id")
-        user_id = event_data.get("user_id")
         task_data = event_data.get("task_data", {})
         recurrence_rule = task_data.get("recurrence_rule")
 
@@ -159,7 +158,7 @@ async def handle_reminder_triggered(request: Request) -> Dict[str, Any]:
     """
     try:
         event_data = await request.json()
-        logger.info(f"Received reminder.triggered event", extra={"event": event_data})
+        logger.info("Received reminder.triggered event", extra={"event": event_data})
 
         # Process reminder (currently just log)
         # In future: call notification service

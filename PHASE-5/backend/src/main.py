@@ -149,11 +149,11 @@ def detailed_health_check():
     Detailed health check with component status
     """
     import sys
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     health_status = {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "service": "TODO API",
         "version": "1.0.0",
         "components": {

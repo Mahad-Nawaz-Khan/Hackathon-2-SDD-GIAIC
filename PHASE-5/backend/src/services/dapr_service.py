@@ -18,7 +18,7 @@ import httpx
 import logging
 import uuid
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 # Configure logging
@@ -102,7 +102,7 @@ class DaprService:
         if "event_id" not in data:
             data["event_id"] = str(uuid.uuid4())
         if "timestamp" not in data:
-            data["timestamp"] = datetime.utcnow().isoformat()
+            data["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         try:
             async with httpx.AsyncClient(timeout=self.DEFAULT_TIMEOUT) as client:

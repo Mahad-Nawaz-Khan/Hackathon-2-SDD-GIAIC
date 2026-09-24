@@ -299,8 +299,15 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
     );
   }
 
+  const getTaskStatusStyle = () => {
+    if (optimisticCompleted) return 'border-emerald-500/30 bg-emerald-500/10';
+    if (isOverdue(task)) return 'border-red-500/40 bg-red-500/5';
+    if (isDueToday(task)) return 'border-yellow-500/40 bg-yellow-500/5';
+    return 'border-white/10 bg-white/5';
+  };
+
   return (
-    <div className={`rounded-2xl border p-5 shadow-lg ${optimisticCompleted ? 'border-emerald-500/30 bg-emerald-500/10' : isOverdue(task) ? 'border-red-500/40 bg-red-500/5' : isDueToday(task) ? 'border-yellow-500/40 bg-yellow-500/5' : 'border-white/10 bg-white/5'}`}>
+    <div className={`rounded-2xl border p-5 shadow-lg ${getTaskStatusStyle()}`}>
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
         Error: {error}
@@ -386,4 +393,27 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
       </div>
     </div>
   );
+};
+
+TaskItem.propTypes = {
+  task: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    title: PropTypes.string.isRequired,
+    description: PropTypes.string,
+    completed: PropTypes.bool,
+    priority: PropTypes.string,
+    due_date: PropTypes.string,
+    recurrence_rule: PropTypes.string,
+    reminder_time: PropTypes.string,
+    created_at: PropTypes.string,
+    tags: PropTypes.arrayOf(
+      PropTypes.shape({
+        id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+        name: PropTypes.string.isRequired,
+        color: PropTypes.string,
+      })
+    ),
+  }).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
 };

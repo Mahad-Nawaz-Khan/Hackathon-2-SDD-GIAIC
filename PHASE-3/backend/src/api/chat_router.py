@@ -94,6 +94,7 @@ async def _handle_create_intent(content: str, user_id: int, db_session: Session)
         params["title"] = content[:100]
 
     async def create_task_with_retry():
+        await asyncio.sleep(0)
         return task_crud_tools.create_task(params, user_id, db_session)
 
     try:
@@ -147,6 +148,7 @@ async def _handle_delete_intent(content: str, user_id: int, db_session: Session)
         return "Please specify which task you want to delete by using the task number.", None
 
     async def delete_task_with_retry():
+        await asyncio.sleep(0)
         return task_crud_tools.delete_task(task_id, user_id, db_session)
 
     try:
@@ -163,28 +165,45 @@ async def _handle_delete_intent(content: str, user_id: int, db_session: Session)
         return "I'm having trouble deleting that task right now. Please try again later.", None
 
 
-def _handle_search_intent(content: str, user_id: int, db_session: Session):
+def _format_search_results(tasks: list) -> str:
+    lines = [f"Found {len(tasks)} task(s):\n"]
+    for task in tasks:
+        status = "✓" if task["completed"] else "○"
+        line = f"{status} {task['title']}"
+        if task.get("due_date"):
+            line += f" (Due: {task['due_date']})"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _extract_search_term(content: str) -> Optional[str]:
     search_match = re.search(r'(?:search|find|look\s+for)\s+(?:tasks?)?\s*(.+)', content.lower())
     search_term = search_match.group(1).strip() if search_match else None
     if search_term:
         for word in ['with', 'containing', 'that', 'have']:
             if word in search_term:
                 search_term = search_term.split(word)[0].strip()
+    return search_term
 
+
+def _handle_search_intent(content: str, user_id: int, db_session: Session):
+    search_term = _extract_search_term(content)
     params = {"search": search_term} if search_term else {}
     result = task_crud_tools.search_tasks(params, user_id, db_session)
 
     if result.get("success") and result.get("tasks"):
-        task_count = result.get("count", 0)
-        lines = [f"Found {task_count} task(s):\n"]
-        for task in result.get("tasks", []):
-            status = "✓" if task["completed"] else "○"
-            line = f"{status} {task['title']}"
-            if task.get("due_date"):
-                line += f" (Due: {task['due_date']})"
-            lines.append(line)
-        return "\n".join(lines), {"type": "search_tasks", "count": task_count}
+        tasks = result.get("tasks", [])
+        return _format_search_results(tasks), {"type": "search_tasks", "count": len(tasks)}
     return "I couldn't find any matching tasks.", None
+
+
+def _format_task_list(header: str, tasks: list) -> str:
+    lines = [header]
+    for task in tasks:
+        status = "✓" if task["completed"] else "○"
+        p_tag = f" [{task['priority']}]" if task.get("priority") else ""
+        lines.append(f"{status} {task['title']}{p_tag}")
+    return "\n".join(lines)
 
 
 def _handle_list_intent(content: str, user_id: int, db_session: Session):
@@ -192,24 +211,16 @@ def _handle_list_intent(content: str, user_id: int, db_session: Session):
     if any(word in content_lower for word in ['today', "today's"]):
         result = task_crud_tools.list_today_tasks(user_id, db_session)
         if result.get("success") and result.get("tasks"):
-            task_count = result.get("count", 0)
-            lines = [f"You have {task_count} task(s) due today:\n"]
-            for task in result.get("tasks", []):
-                status = "✓" if task["completed"] else "○"
-                p_tag = f" [{task['priority']}]" if task.get("priority") else ""
-                lines.append(f"{status} {task['title']}{p_tag}")
-            return "\n".join(lines), {"type": "list_today_tasks", "count": task_count}
+            tasks = result.get("tasks", [])
+            header = f"You have {len(tasks)} task(s) due today:\n"
+            return _format_task_list(header, tasks), {"type": "list_today_tasks", "count": len(tasks)}
         return "You don't have any tasks due today. Great job!", None
 
     result = task_crud_tools.search_tasks({"completed": False, "limit": 10}, user_id, db_session)
     if result.get("success") and result.get("tasks"):
-        task_count = result.get("count", 0)
-        lines = [f"Here are your pending tasks ({task_count}):\n"]
-        for task in result.get("tasks", []):
-            status = "✓" if task["completed"] else "○"
-            p_tag = f" [{task['priority']}]" if task.get("priority") else ""
-            lines.append(f"{status} {task['title']}{p_tag}")
-        return "\n".join(lines), {"type": "list_tasks", "count": task_count}
+        tasks = result.get("tasks", [])
+        header = f"Here are your pending tasks ({len(tasks)}):\n"
+        return _format_task_list(header, tasks), {"type": "list_tasks", "count": len(tasks)}
     return "You don't have any pending tasks. Great job!", None
 
 

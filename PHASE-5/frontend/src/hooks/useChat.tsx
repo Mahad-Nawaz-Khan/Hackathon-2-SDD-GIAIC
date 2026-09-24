@@ -15,6 +15,37 @@ interface UseChatOptions {
   enableStreaming?: boolean;
 }
 
+const appendMessageDelta = (messages: Message[], targetId: string, delta: string): Message[] => {
+  return messages.map(msg =>
+    msg.id === targetId ? { ...msg, text: msg.text + delta } : msg
+  );
+};
+
+const finalizeMessage = (messages: Message[], targetId: string, content: string, createdAt: string): Message[] => {
+  return messages.map(msg =>
+    msg.id === targetId
+      ? {
+          ...msg,
+          text: content,
+          timestamp: new Date(createdAt),
+          isStreaming: false,
+        }
+      : msg
+  );
+};
+
+const markMessageError = (messages: Message[], targetId: string, errorMessage: string): Message[] => {
+  return messages.map(msg =>
+    msg.id === targetId
+      ? {
+          ...msg,
+          text: errorMessage,
+          isStreaming: false,
+        }
+      : msg
+  );
+};
+
 export const useChat = (initialMessages: Message[] = [], options: UseChatOptions = {}) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +96,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
           await chatService.saveWelcomeMessage(welcomeText);
         } catch (err) {
           // Silently fail - welcome message is for display only
+          console.warn("Failed to save welcome message:", err);
         }
       } else {
         setMessages(history.messages);
@@ -72,6 +104,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       setSessionId(history.session_id);
     } catch (error) {
       // Don't throw error - just continue with empty state
+      console.warn("Failed to load chat history:", error);
     } finally {
       setIsLoading(false);
     }
@@ -143,32 +176,17 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
           text,
           {
             onContent: (delta: string) => {
-              setMessages(prev =>
-                prev.map(msg =>
-                  msg.id === aiMessageId
-                    ? { ...msg, text: msg.text + delta }
-                    : msg
-                )
-              );
+              setMessages(prev => appendMessageDelta(prev, aiMessageId, delta));
             },
-            onToolCall: (tool: string, args: any) => {
+            onToolCall: () => {
               // Tool call - no action needed
             },
-            onToolOutput: (output: any) => {
+            onToolOutput: () => {
               // Tool output - no action needed
             },
             onDone: (response) => {
               setMessages(prev =>
-                prev.map(msg =>
-                  msg.id === aiMessageId
-                    ? {
-                        ...msg,
-                        text: response.message.content,
-                        timestamp: new Date(response.message.created_at),
-                        isStreaming: false,
-                      }
-                    : msg
-                )
+                finalizeMessage(prev, aiMessageId, response.message.content, response.message.created_at)
               );
 
               if (response.operation_performed) {
@@ -187,16 +205,9 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
               abortControllerRef.current = null;
             },
             onError: (error: string) => {
+              console.warn("Stream error encountered:", error);
               setMessages(prev =>
-                prev.map(msg =>
-                  msg.id === aiMessageId
-                    ? {
-                        ...msg,
-                        text: 'Sorry, I encountered an error. Please try again.',
-                        isStreaming: false,
-                      }
-                    : msg
-                )
+                markMessageError(prev, aiMessageId, 'Sorry, I encountered an error. Please try again.')
               );
               setIsLoading(false);
               abortControllerRef.current = null;
@@ -233,17 +244,10 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       }
 
     } catch (error) {
+      console.warn("Failed to process message:", error);
       // Add error message
       setMessages(prev =>
-        prev.map(msg =>
-          msg.id === aiMessageId
-            ? {
-                ...msg,
-                text: 'Sorry, I encountered an error processing your request. Please try again.',
-                isStreaming: false,
-              }
-            : msg
-        )
+        markMessageError(prev, aiMessageId, 'Sorry, I encountered an error processing your request. Please try again.')
       );
       setIsLoading(false);
     }
@@ -259,6 +263,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
       setOperationPerformed(null);
       setSessionId(chatService.getSessionId());
     } catch (error) {
+      console.warn("Failed to clear chat history on server:", error);
       // Still clear local state even if API call fails
       setMessages([]);
     }
@@ -284,7 +289,7 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
 
       setMessages([welcomeMessage]);
     } catch (error) {
-      // Silently fail
+      console.warn("Failed to start new conversation:", error);
     }
   }, [userName]);
 
@@ -292,11 +297,15 @@ export const useChat = (initialMessages: Message[] = [], options: UseChatOptions
    * Format message text for display (handles newlines, etc.)
    */
   const formatMessage = useCallback((text: string) => {
-    return text.split('\n').map((line, i) => (
-      <p key={i} className={i > 0 ? 'mt-2' : ''}>
-        {line}
-      </p>
-    ));
+    let lineNum = 0;
+    return text.split('\n').map((line) => {
+      lineNum += 1;
+      return (
+        <p key={`line-${lineNum}-${line.slice(0, 20)}`} className={lineNum > 1 ? 'mt-2' : ''}>
+          {line}
+        </p>
+      );
+    });
   }, []);
 
   return {

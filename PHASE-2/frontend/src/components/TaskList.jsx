@@ -6,6 +6,91 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { TaskItem } from './TaskItem';
 import { useAuth } from '@clerk/nextjs';
 
+const fetchAllPages = async (token, signal) => {
+  const pageSize = 100;
+  let offset = 0;
+  let allTasks = [];
+
+  while (true) {
+    const params = new URLSearchParams({
+      limit: pageSize.toString(),
+      offset: offset.toString(),
+      sort_by: 'created_at',
+      order: 'desc',
+    });
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tasks: ${response.status}`);
+    }
+
+    const page = await response.json();
+    allTasks = allTasks.concat(page);
+
+    if (!Array.isArray(page) || page.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return allTasks;
+};
+
+const updateTaskTags = (tasks, updatedTag) => {
+  return tasks.map((task) => {
+    if (!Array.isArray(task.tags) || task.tags.length === 0) {
+      return task;
+    }
+
+    let changed = false;
+    const nextTags = task.tags.map((tag) => {
+      if (tag.id !== updatedTag.id) {
+        return tag;
+      }
+      changed = true;
+      return {
+        ...tag,
+        ...updatedTag,
+      };
+    });
+
+    if (!changed) {
+      return task;
+    }
+
+    return {
+      ...task,
+      tags: nextTags,
+    };
+  });
+};
+
+const removeTaskTags = (tasks, deletedTagId) => {
+  return tasks.map((task) => {
+    if (!Array.isArray(task.tags) || task.tags.length === 0) {
+      return task;
+    }
+
+    const nextTags = task.tags.filter((tag) => tag.id !== deletedTagId);
+    if (nextTags.length === task.tags.length) {
+      return task;
+    }
+
+    return {
+      ...task,
+      tags: nextTags,
+    };
+  });
+};
+
 export const TaskList = ({ createdTask }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,41 +133,9 @@ export const TaskList = ({ createdTask }) => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      const pageSize = 100;
-      let offset = 0;
-      let allTasks = [];
-
-      while (true) {
-        const params = new URLSearchParams();
-        params.append('limit', pageSize.toString());
-        params.append('offset', offset.toString());
-        params.append('sort_by', 'created_at');
-        params.append('order', 'desc');
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tasks: ${response.status}`);
-        }
-
-        const page = await response.json();
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-
-        allTasks = allTasks.concat(page);
-
-        if (!Array.isArray(page) || page.length < pageSize) {
-          break;
-        }
-
-        offset += pageSize;
+      const allTasks = await fetchAllPages(token, abortController.signal);
+      if (requestIdRef.current !== requestId) {
+        return;
       }
 
       setTasks(() => {
@@ -151,52 +204,11 @@ export const TaskList = ({ createdTask }) => {
       }
 
       if (detail.type === 'updated' && detail.tag) {
-        const updatedTag = detail.tag;
-        setTasks((prev) => prev.map((task) => {
-          if (!Array.isArray(task.tags) || task.tags.length === 0) {
-            return task;
-          }
-
-          let changed = false;
-          const nextTags = task.tags.map((tag) => {
-            if (tag.id !== updatedTag.id) {
-              return tag;
-            }
-            changed = true;
-            return {
-              ...tag,
-              ...updatedTag,
-            };
-          });
-
-          if (!changed) {
-            return task;
-          }
-
-          return {
-            ...task,
-            tags: nextTags,
-          };
-        }));
+        setTasks((prev) => updateTaskTags(prev, detail.tag));
       }
 
       if (detail.type === 'deleted' && detail.tagId) {
-        const deletedTagId = detail.tagId;
-        setTasks((prev) => prev.map((task) => {
-          if (!Array.isArray(task.tags) || task.tags.length === 0) {
-            return task;
-          }
-
-          const nextTags = task.tags.filter((tag) => tag.id !== deletedTagId);
-          if (nextTags.length === task.tags.length) {
-            return task;
-          }
-
-          return {
-            ...task,
-            tags: nextTags,
-          };
-        }));
+        setTasks((prev) => removeTaskTags(prev, detail.tagId));
       }
     };
 
@@ -424,3 +436,11 @@ export const TaskList = ({ createdTask }) => {
     </div>
   );
 };
+
+TaskList.propTypes = {
+  createdTask: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  }),
+};
+
+export default TaskList;

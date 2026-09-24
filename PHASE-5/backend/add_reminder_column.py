@@ -18,7 +18,7 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-print(f"Connecting to database...")
+print("Connecting to database...")
 
 # Create engine
 engine = create_engine(DATABASE_URL)

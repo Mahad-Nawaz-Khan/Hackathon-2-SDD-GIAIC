@@ -11,7 +11,7 @@ from fastapi import APIRouter, Request, HTTPException
 from typing import Dict, Any
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ async def handle_job_trigger(request: Request) -> Dict[str, Any]:
     """
     try:
         payload = await request.json()
-        logger.info(f"Job triggered", extra={"payload": payload})
+        logger.info("Job triggered", extra={"payload": payload})
 
         task_id = payload.get("task_id")
         user_id = payload.get("user_id")
@@ -65,7 +65,7 @@ async def handle_job_trigger(request: Request) -> Dict[str, Any]:
             data={
                 "event_type": "reminder.triggered",
                 "event_id": str(uuid.uuid4()),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "task_id": task_id,
                 "user_id": user_id,
                 "task_title": task_title,

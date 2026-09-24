@@ -28,7 +28,7 @@ backend:
     CLERK_JWKS_URL: "https://civil-corgi-51.clerk.accounts.dev/.well-known/jwks.json"
     CLERK_SECRET_KEY: "placeholder-clerk-secret-key"
     CORS_ORIGINS: "http://localhost:3000,http://todo-chatbot.local"
-    DATABASE_URL: "postgresql://todo_user:todo_password@localhost:5432/todo_db"
+    DATABASE_URL: "postgresql://todo_user:placeholder-db-password@localhost:5432/todo_db"
     GEMINI_API_KEY: "placeholder-gemini-api-key"
     GEMINI_MODEL: "gemini-2.5-flash-lite"
     Z_AI_API_KEY: "placeholder-z-ai-api-key"

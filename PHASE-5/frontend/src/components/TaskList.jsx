@@ -6,6 +6,95 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { TaskItem } from './TaskItem';
 import { useAuth } from '@clerk/nextjs';
 
+const fetchAllPages = async (token, signal, tags = []) => {
+  const pageSize = 100;
+  let offset = 0;
+  let allTasks = [];
+
+  while (true) {
+    const params = new URLSearchParams({
+      limit: pageSize.toString(),
+      offset: offset.toString(),
+      sort_by: 'created_at',
+      order: 'desc',
+    });
+
+    if (tags && tags.length > 0) {
+      params.append('tags', tags.join(','));
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tasks: ${response.status}`);
+    }
+
+    const page = await response.json();
+    allTasks = allTasks.concat(page);
+
+    if (!Array.isArray(page) || page.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return allTasks;
+};
+
+const updateTaskTags = (tasks, updatedTag) => {
+  return tasks.map((task) => {
+    if (!Array.isArray(task.tags) || task.tags.length === 0) {
+      return task;
+    }
+
+    let changed = false;
+    const nextTags = task.tags.map((tag) => {
+      if (tag.id !== updatedTag.id) {
+        return tag;
+      }
+      changed = true;
+      return {
+        ...tag,
+        ...updatedTag,
+      };
+    });
+
+    if (!changed) {
+      return task;
+    }
+
+    return {
+      ...task,
+      tags: nextTags,
+    };
+  });
+};
+
+const removeTaskTags = (tasks, deletedTagId) => {
+  return tasks.map((task) => {
+    if (!Array.isArray(task.tags) || task.tags.length === 0) {
+      return task;
+    }
+
+    const nextTags = task.tags.filter((tag) => tag.id !== deletedTagId);
+    if (nextTags.length === task.tags.length) {
+      return task;
+    }
+
+    return {
+      ...task,
+      tags: nextTags,
+    };
+  });
+};
+
 /**
  * @param {object} props
  * @param {any} [props.createdTask]
@@ -60,52 +149,11 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
       }
 
       if (detail.type === 'updated' && detail.tag) {
-        const updatedTag = detail.tag;
-        setTasks((prev) => prev.map((task) => {
-          if (!Array.isArray(task.tags) || task.tags.length === 0) {
-            return task;
-          }
-
-          let changed = false;
-          const nextTags = task.tags.map((tag) => {
-            if (tag.id !== updatedTag.id) {
-              return tag;
-            }
-            changed = true;
-            return {
-              ...tag,
-              ...updatedTag,
-            };
-          });
-
-          if (!changed) {
-            return task;
-          }
-
-          return {
-            ...task,
-            tags: nextTags,
-          };
-        }));
+        setTasks((prev) => updateTaskTags(prev, detail.tag));
       }
 
       if (detail.type === 'deleted' && detail.tagId) {
-        const deletedTagId = detail.tagId;
-        setTasks((prev) => prev.map((task) => {
-          if (!Array.isArray(task.tags) || task.tags.length === 0) {
-            return task;
-          }
-
-          const nextTags = task.tags.filter((tag) => tag.id !== deletedTagId);
-          if (nextTags.length === task.tags.length) {
-            return task;
-          }
-
-          return {
-            ...task,
-            tags: nextTags,
-          };
-        }));
+        setTasks((prev) => removeTaskTags(prev, detail.tagId));
       }
     };
 
@@ -228,46 +276,9 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      const pageSize = 100;
-      let offset = 0;
-      let allTasks = [];
-
-      while (true) {
-        const params = new URLSearchParams();
-        params.append('limit', pageSize.toString());
-        params.append('offset', offset.toString());
-        params.append('sort_by', 'created_at');
-        params.append('order', 'desc');
-
-        // Add tag filter if specified
-        if (filters.tags && filters.tags.length > 0) {
-          params.append('tags', filters.tags.join(','));
-        }
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/tasks?${params.toString()}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tasks: ${response.status}`);
-        }
-
-        const page = await response.json();
-        if (requestIdRef.current !== requestId) {
-          return;
-        }
-
-        allTasks = allTasks.concat(page);
-
-        if (!Array.isArray(page) || page.length < pageSize) {
-          break;
-        }
-
-        offset += pageSize;
+      const allTasks = await fetchAllPages(token, abortController.signal, filters.tags);
+      if (requestIdRef.current !== requestId) {
+        return;
       }
 
       if (replace) {
@@ -415,7 +426,7 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
       {/* Tag Filters */}
       {availableTags.length > 0 && (
         <div className="mt-4">
-          <label className="block text-sm font-medium text-white/80 mb-2">Filter by Tags</label>
+          <span className="block text-sm font-medium text-white/80 mb-2">Filter by Tags</span>
           <div className="flex flex-wrap gap-2">
             {availableTags.map((tag) => {
               const isSelected = filters.tags.includes(tag.id);
@@ -481,3 +492,16 @@ export const TaskList = ({ createdTask, availableTags = [] }) => {
     </div>
   );
 };
+
+TaskList.propTypes = {
+  createdTask: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  }),
+  availableTags: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    name: PropTypes.string,
+    color: PropTypes.string,
+  })),
+};
+
+export default TaskList;

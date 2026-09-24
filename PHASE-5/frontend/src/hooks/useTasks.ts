@@ -56,7 +56,8 @@ async function fetchTasks(filters: TaskFilters): Promise<Task[]> {
   }
 
   const queryString = params.toString();
-  const url = `/api/v1/tasks${queryString ? `?${queryString}` : ''}`;
+  const queryPart = queryString ? `?${queryString}` : '';
+  const url = `/api/v1/tasks${queryPart}`;
 
   const response = await fetch(url, {
     headers: {

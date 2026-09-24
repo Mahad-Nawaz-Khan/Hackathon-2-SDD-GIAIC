@@ -1,7 +1,7 @@
 /**
  * Task Types
  *
- * Type definitions for the Todo application task management features.
+ * Type definitions for the Task Management application features.
  * Includes Task entity, Priority enum, RecurrenceRule enum, and TaskFilters interface.
  */
 

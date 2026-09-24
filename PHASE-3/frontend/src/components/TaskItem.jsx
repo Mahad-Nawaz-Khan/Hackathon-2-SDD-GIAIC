@@ -341,3 +341,26 @@ export const TaskItem = ({ task, onUpdate, onDelete }) => {
     </div>
   );
 };
+
+TaskItem.propTypes = {
+  task: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    title: PropTypes.string.isRequired,
+    description: PropTypes.string,
+    completed: PropTypes.bool,
+    priority: PropTypes.string,
+    due_date: PropTypes.string,
+    recurrence_rule: PropTypes.string,
+    reminder_time: PropTypes.string,
+    created_at: PropTypes.string,
+    tags: PropTypes.arrayOf(
+      PropTypes.shape({
+        id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+        name: PropTypes.string.isRequired,
+        color: PropTypes.string,
+      })
+    ),
+  }).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
+};

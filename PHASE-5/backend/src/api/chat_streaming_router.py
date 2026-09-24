@@ -28,13 +28,15 @@ from ..models.chat_models import (
 
 logger = logging.getLogger(__name__)
 
+SSE_DONE_EVENT = "event: done\ndata: {}\n\n"
+SSE_DATA_DONE = "data: [DONE]\n\n"
+MEDIA_TYPE_EVENT_STREAM = "text/event-stream"
+
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat-streaming"])
-
-MEDIA_TYPE_EVENT_STREAM = "text/event-stream"
 
 
 async def _stream_response_generator(
@@ -74,7 +76,7 @@ async def _stream_response_generator(
         # Process with streaming agent (AI is required)
         if not agent_service.is_available():
             yield f"data: {json.dumps({'type': 'error', 'content': 'AI service is not available. Please ensure GEMINI_API_KEY is configured.'})}\n\n"
-            yield "data: [DONE]\n\n"
+            yield SSE_DATA_DONE
             return
 
         full_response_content = ""
@@ -129,22 +131,22 @@ async def _stream_response_generator(
                     }
                 }
                 yield f"data: {json.dumps(final_data)}\n\n"
-                yield "event: done\ndata: {}\n\n"
-                yield "data: [DONE]\n\n"
+                yield SSE_DONE_EVENT
+                yield SSE_DATA_DONE
                 return
 
             elif event["type"] == "error":
                 # Error occurred
                 yield f"data: {json.dumps({'type': 'error', 'content': event.get('content', 'Unknown error')})}\n\n"
-                yield "event: done\ndata: {}\n\n"
-                yield "data: [DONE]\n\n"
+                yield SSE_DONE_EVENT
+                yield SSE_DATA_DONE
                 return
 
     except Exception as e:
         logger.exception(f"Error in stream generator: {str(e)}")
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-        yield "event: done\ndata: {}\n\n"
-        yield "data: [DONE]\n\n"
+        yield SSE_DONE_EVENT
+        yield SSE_DATA_DONE
 
 
 @router.get("/stream")
@@ -262,8 +264,8 @@ async def send_chat_message_stream(
 
             # Return simple success response
             async def welcome_response_generator():
-                yield f"data: {json.dumps({'type': 'final', 'content': message_data.content, 'message': {'id': str(ai_message.id), 'content': message_data.content, 'sender_type': 'AI', 'created_at': ai_message.created_at.isoformat()}})}\\n\\n"
-                yield f"data: [DONE]\\n\\n"
+                yield f"data: {json.dumps({'type': 'final', 'content': message_data.content, 'message': {'id': str(ai_message.id), 'content': message_data.content, 'sender_type': 'AI', 'created_at': ai_message.created_at.isoformat()}})}\n\n"
+                yield SSE_DATA_DONE
 
             return StreamingResponse(
                 welcome_response_generator(),

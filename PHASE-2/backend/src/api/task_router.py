@@ -221,9 +221,6 @@ async def delete_task(
             detail=ERROR_TASK_NOT_FOUND
         )
 
-    # Return 204 No Content
-    return
-
 
 @router.patch("/tasks/{task_id}/toggle-completion", response_model=TaskResponse)
 @limiter.limit("40/minute")  # 40 requests per minute for authenticated users

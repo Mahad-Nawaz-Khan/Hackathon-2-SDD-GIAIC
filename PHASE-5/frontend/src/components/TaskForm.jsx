@@ -198,3 +198,7 @@ export const TaskForm = ({ onTaskCreated }) => {
     </div>
   );
 };
+
+TaskForm.propTypes = {
+  onTaskCreated: PropTypes.func.isRequired,
+};

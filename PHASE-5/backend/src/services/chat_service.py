@@ -5,7 +5,7 @@ Chat Service - Core chatbot business logic with intent classification
 import logging
 import re
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from sqlmodel import Session, select
 from ..models.chat_models import (
@@ -108,12 +108,56 @@ class ChatService:
                     )
 
         # Default to unknown if no pattern matches
-        logger.info(f"No intent detected, returning UNKNOWN")
+        logger.info("No intent detected, returning UNKNOWN")
         return IntentDetectionResult(
             intent=IntentTypeEnum.UNKNOWN,
             confidence=0.0,
             parameters={}
         )
+
+    def _extract_priority(self, message_lower: str) -> Optional[str]:
+        priority_patterns = {
+            'high': [r'\bhigh\s*priority', r'\bhigh', r'\bimportant', r'\burgent', r'\bcrucial'],
+            'medium': [r'\bmedium\s*priority', r'\bmedium', r'\bnormal'],
+            'low': [r'\blow\s*priority', r'\blow', r'\bminor', r'\btrivial'],
+        }
+        for priority, patterns in priority_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, message_lower):
+                    return priority.upper()
+        return None
+
+    def _extract_due_date(self, message_lower: str) -> Optional[str]:
+        due_date_patterns = [
+            (r'\btoday', lambda: datetime.now(timezone.utc).strftime('%Y-%m-%d')),
+            (r'\btomorrow', lambda: (datetime.now(timezone.utc).replace(hour=23, minute=59) + timedelta(days=1)).strftime('%Y-%m-%d')),
+            (r'\bthis\s+week', lambda: (datetime.now(timezone.utc).replace(hour=23, minute=59) + timedelta(days=7)).strftime('%Y-%m-%d')),
+            (r'\bby\s+friday', self._get_next_friday),
+            (r'\bby\s+monday', self._get_next_monday),
+        ]
+        for pattern, date_func in due_date_patterns:
+            if re.search(pattern, message_lower):
+                try:
+                    return date_func()
+                except Exception as e:
+                    logger.debug(f"Failed to calculate relative date: {e}")
+                break
+        return None
+
+    def _extract_task_title(self, message_lower: str, intent: IntentTypeEnum) -> Optional[str]:
+        if intent != IntentTypeEnum.CREATE_TASK:
+            return None
+        title_match = re.search(
+            r'\b(create|add|make|new)\s+(a\s+)?task\s+(to|for|about)?\s*(.+?)\s+(?:with|by|priority|$)',
+            message_lower
+        )
+        if not title_match:
+            return None
+        title = title_match.group(4).strip()
+        for word in ['with', 'by', 'due', 'priority']:
+            if word in title:
+                title = title.split(word)[0].strip()
+        return title.capitalize() if title else None
 
     def _extract_parameters(self, message: str, intent: IntentTypeEnum, match: re.Match) -> Dict[str, Any]:
         """
@@ -130,53 +174,17 @@ class ChatService:
         parameters = {}
         message_lower = message.lower()
 
-        # Extract priority
-        priority_patterns = {
-            'high': [r'\bhigh\s*priority', r'\bhigh', r'\bimportant', r'\burgent', r'\bcrucial'],
-            'medium': [r'\bmedium\s*priority', r'\bmedium', r'\bnormal'],
-            'low': [r'\blow\s*priority', r'\blow', r'\bminor', r'\btrivial'],
-        }
+        priority = self._extract_priority(message_lower)
+        if priority:
+            parameters['priority'] = priority
 
-        for priority, patterns in priority_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, message_lower):
-                    parameters['priority'] = priority.upper()
-                    break
+        due_date = self._extract_due_date(message_lower)
+        if due_date:
+            parameters['due_date'] = due_date
 
-        # Extract due date (simple patterns)
-        due_date_patterns = [
-            (r'\btoday', lambda: datetime.now().strftime('%Y-%m-%d')),
-            (r'\btomorrow', lambda: (datetime.now().replace(hour=23, minute=59) +
-                                     __import__('datetime').timedelta(days=1)).strftime('%Y-%m-%d')),
-            (r'\bthis\s+week', lambda: (datetime.now().replace(hour=23, minute=59) +
-                                       __import__('datetime').timedelta(days=7)).strftime('%Y-%m-%d')),
-            (r'\bby\s+friday', lambda: self._get_next_friday()),
-            (r'\bby\s+monday', lambda: self._get_next_monday()),
-        ]
-
-        for pattern, date_func in due_date_patterns:
-            if re.search(pattern, message_lower):
-                try:
-                    parameters['due_date'] = date_func()
-                except:
-                    pass
-                break
-
-        # Extract task title based on intent
-        if intent == IntentTypeEnum.CREATE_TASK:
-            # Try to extract title from various patterns
-            title_match = re.search(
-                r'\b(create|add|make|new)\s+(a\s+)?task\s+(to|for|about)?\s*(.+?)\s+(?:with|by|priority|$)',
-                message_lower
-            )
-            if title_match:
-                title = title_match.group(4).strip()
-                # Remove trailing words that are part of the command
-                for word in ['with', 'by', 'due', 'priority']:
-                    if word in title:
-                        title = title.split(word)[0].strip()
-                if title:
-                    parameters['title'] = title.capitalize()
+        title = self._extract_task_title(message_lower, intent)
+        if title:
+            parameters['title'] = title
 
         return parameters
 
@@ -292,7 +300,7 @@ class ChatService:
             interaction = self.create_chat_interaction(user_id, session_id, db_session)
         else:
             # Update the updated_at timestamp
-            interaction.updated_at = datetime.utcnow()
+            interaction.updated_at = datetime.now(timezone.utc)
             db_session.add(interaction)
             db_session.commit()
 
@@ -483,7 +491,7 @@ class ChatService:
         if error_message:
             operation_request.error_message = error_message
         if status == OperationStatusEnum.COMPLETED:
-            operation_request.completed_at = datetime.utcnow()
+            operation_request.completed_at = datetime.now(timezone.utc)
 
         db_session.add(operation_request)
         db_session.commit()

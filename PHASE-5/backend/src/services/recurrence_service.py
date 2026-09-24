@@ -9,6 +9,7 @@
 # events and automatically create the next instance of recurring tasks.
 # ============================================================================
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from sqlmodel import Session, select
@@ -60,6 +61,9 @@ class RecurrenceService:
             ... )
             >>> # Returns new task "Standup" due on 2025-01-02
         """
+        await asyncio.sleep(0)
+        if event_data:
+            logger.debug("Processing recurrence for event data: %s", event_data)
         try:
             with next(get_session()) as session:
                 # Get the original task

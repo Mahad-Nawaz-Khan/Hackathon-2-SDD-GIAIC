@@ -14,7 +14,7 @@ import os
 import asyncio
 import re
 from typing import Dict, Any, Optional, List, AsyncIterator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
 from sqlmodel import Session, select
@@ -222,7 +222,7 @@ def _parse_relative_date(date_str: str) -> Optional[datetime]:
 
     from datetime import timedelta
 
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Relative date mappings
     if date_str == "today":
@@ -343,9 +343,9 @@ def agent_get_current_date() -> str:
         Current date in YYYY-MM-DD format
     """
     try:
-        today = datetime.utcnow()
+        today = datetime.now(timezone.utc)
         return f"Today is {today.strftime('%Y-%m-%d (%A)')}. "
-    except:
+    except Exception:
         return "Could not get current date."
 
 
@@ -1120,7 +1120,7 @@ class AgentService:
                 tools=self._tools
             )
 
-            self._Runner = Runner
+            self._runner = Runner
             self._initialized = True
             logger.info("OpenAI Agents SDK initialized successfully with Z.ai API")
 
@@ -1194,7 +1194,7 @@ class AgentService:
                 input_text = "\n".join(context_parts) + f"\n\nCurrent message: {content}"
 
             # Run the agent
-            result = await self._Runner.run(
+            result = await self._runner.run(
                 self._agent,
                 input=input_text,
                 run_config=self._run_config
@@ -1281,7 +1281,7 @@ class AgentService:
             if context_parts:
                 input_text = "\n".join(context_parts) + f"\n\nCurrent message: {content}"
 
-            result = await self._Runner.run(
+            result = await self._runner.run(
                 self._agent,
                 input=input_text,
                 run_config=self._run_config

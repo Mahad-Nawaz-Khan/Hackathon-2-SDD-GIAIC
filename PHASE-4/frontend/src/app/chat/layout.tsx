@@ -4,9 +4,9 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/n
 
 export default function ChatLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   const { isLoaded } = useUser();
 
   if (!isLoaded) {
