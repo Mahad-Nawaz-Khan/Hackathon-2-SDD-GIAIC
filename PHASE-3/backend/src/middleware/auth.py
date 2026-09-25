@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 from jose import JWTError, jwt
 from jose.constants import ALGORITHMS
 import time
+from urllib.parse import urlparse
 
 # Define the security scheme
 security = HTTPBearer()
@@ -30,6 +31,16 @@ class ClerkAuthMiddleware:
         self.jwks_url_override = os.getenv("CLERK_JWKS_URL")
         self.issuer_override = os.getenv("CLERK_ISSUER")
         self.audience_override = os.getenv("CLERK_JWT_AUDIENCE")
+
+        configured_issuers = os.getenv("CLERK_ALLOWED_ISSUERS", "")
+        self.allowed_issuers = {
+            issuer.strip().rstrip("/")
+            for issuer in configured_issuers.split(",")
+            if issuer.strip()
+        }
+
+        if self.issuer_override:
+            self.allowed_issuers.add(self.issuer_override.rstrip("/"))
 
     def _get_token_claims(self, token: str) -> Dict[str, Any]:
         parts = token.split(".")
@@ -50,12 +61,28 @@ class ClerkAuthMiddleware:
         if not issuer or not isinstance(issuer, str):
             logger.error(f"Missing or invalid issuer in token: {token_claims.get('iss')}")
             raise HTTPException(status_code=401, detail="Token issuer (iss) is missing")
-        return issuer.rstrip("/")
+
+        issuer = issuer.rstrip("/")
+        parsed_issuer = urlparse(issuer)
+        if parsed_issuer.scheme != "https" or not parsed_issuer.netloc:
+            logger.error("Issuer must be a valid HTTPS URL")
+            raise HTTPException(status_code=401, detail="Invalid token issuer")
+
+        if self.allowed_issuers and issuer not in self.allowed_issuers:
+            logger.error("Token issuer is not in configured allow-list")
+            raise HTTPException(status_code=401, detail="Untrusted token issuer")
+
+        return issuer
 
     def _get_jwks_url(self, issuer: str) -> str:
         if self.jwks_url_override:
+            parsed_jwks = urlparse(self.jwks_url_override)
+            if parsed_jwks.scheme != "https" or not parsed_jwks.netloc:
+                raise HTTPException(status_code=500, detail="Invalid Clerk JWKS URL configuration")
             return self.jwks_url_override
-        return f"{issuer}/.well-known/jwks.json"
+
+        parsed_issuer = urlparse(issuer)
+        return f"{parsed_issuer.scheme}://{parsed_issuer.netloc}/.well-known/jwks.json"
 
     def _get_audience(self, token_claims: Dict[str, Any]):
         # Only validate audience if you explicitly configured it.
@@ -115,7 +142,7 @@ class ClerkAuthMiddleware:
             )
 
         # Extract the token
-        token = auth_header.split(" ")[1]
+        _, _, token = auth_header.partition(" ")
 
         try:
             token_claims = self._get_token_claims(token)
@@ -167,7 +194,7 @@ class ClerkAuthMiddleware:
             logger.error(f"JWT verification failed: {e}")
             raise HTTPException(
                 status_code=401,
-                detail=f"Token verification failed: {str(e)}"
+                detail="Token verification failed"
             )
         except HTTPException:
             raise
@@ -175,7 +202,7 @@ class ClerkAuthMiddleware:
             logger.error(f"Token verification error: {e}")
             raise HTTPException(
                 status_code=401,
-                detail=f"Token verification failed: {str(e)}"
+                detail="Token verification failed"
             )
 
 
